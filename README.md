@@ -2,6 +2,8 @@
 
 A React and TypeScript portfolio built with Vite and hosted on Firebase Hosting.
 
+**Live site:** [phurin-portfolio-2026.web.app](https://phurin-portfolio-2026.web.app/)
+
 ## Getting started
 
 Install dependencies with `npm install`, then run `npm run dev`. Open the URL shown in the terminal.
