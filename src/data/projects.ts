@@ -40,7 +40,6 @@ export const projects: Project[] = [
   {name:'Factorio Recipe Planner', category:'tools', label:'TOOL', description:'A Factorio recipe planning project.', tech:['Dart'], repo:'factorio_recipe_planner'},
   {name:'Factorio Utilities', category:'tools', label:'TOOL', description:'Python utilities for Factorio mod development.', tech:['Python'], repo:'factorio-utils'},
   {name:'Elon Tweet Analysis', category:'data', label:'DATA ANALYSIS', description:'A notebook-based tweet analysis project.', tech:['Jupyter Notebook'], repo:'elon-twit-analysis'},
-  {name:'Elon Tweet Rework', category:'data', label:'DATA ANALYSIS', description:'A Python project revisiting tweet analysis.', tech:['Python'], repo:'elon-twit-rework'},
   {name:'Computer Graphics & Physics', category:'data', label:'UNIVERSITY · RESEARCH', description:'A notebook project involving computer graphics and physics.', tech:['Jupyter Notebook'], repo:'CG-Phys-Project'},
   {name:'Bio', category:'data', label:'DATA · RESEARCH', description:'A Python project involving structural variants in DNA sequences.', tech:['Python'], repo:'Bio'},
   {name:'Structured Laser', category:'data', label:'INTERNSHIP · RESEARCH', description:'A structured laser project from the Shippop internship.', tech:['Python','Jupyter Notebook'], repo:'Shippop-Structured-laser', details:['Internship work related to measuring box dimensions using a structured laser and image analysis.']},
