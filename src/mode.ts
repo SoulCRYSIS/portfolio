@@ -14,7 +14,22 @@ export function initialMode(): Mode {
   }
 }
 
+const SEEN_KEY = 'portfolio-fancy-seen';
+
+/** True once the viewer has opened the fancy version or dismissed the invitation to. */
+export function hasSeenFancy() {
+  try { return localStorage.getItem(SEEN_KEY) === '1'; } catch { return false; }
+}
+
+export function markFancySeen() {
+  try { localStorage.setItem(SEEN_KEY, '1'); } catch { /* storage unavailable */ }
+  window.dispatchEvent(new Event(SEEN_EVENT));
+}
+
+export const SEEN_EVENT = 'portfolio-fancy-seen';
+
 export function rememberMode(mode: Mode) {
+  if (mode === 'fancy') markFancySeen();
   try { localStorage.setItem(STORAGE_KEY, mode); } catch { /* storage unavailable */ }
   try {
     const url = new URL(window.location.href);

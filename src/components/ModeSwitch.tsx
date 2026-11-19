@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { loadFancy, useMode } from '../mode';
+import { SEEN_EVENT, hasSeenFancy, loadFancy, useMode } from '../mode';
 import type { Mode } from '../mode';
 
 const options: { value: Mode; label: string }[] = [
@@ -9,6 +10,13 @@ const options: { value: Mode; label: string }[] = [
 
 export function ModeSwitch({ className = '' }: { className?: string }) {
   const { mode, switchMode } = useMode();
+  const [seen, setSeen] = useState(hasSeenFancy);
+  useEffect(() => {
+    const onSeen = () => setSeen(true);
+    window.addEventListener(SEEN_EVENT, onSeen);
+    return () => window.removeEventListener(SEEN_EVENT, onSeen);
+  }, []);
+  const inviting = mode === 'simple' && !seen;
   const choose = (value: Mode, event: MouseEvent<HTMLButtonElement>) => {
     if (value === mode) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -16,7 +24,7 @@ export function ModeSwitch({ className = '' }: { className?: string }) {
   };
 
   return (
-    <div className={`mode-switch ${className}`} role="group" aria-label="Site style" data-mode={mode} onPointerEnter={() => { void loadFancy(); }}>
+    <div className={`mode-switch ${inviting ? 'is-inviting' : ''} ${className}`} role="group" aria-label="Site style" data-mode={mode} onPointerEnter={() => { void loadFancy(); }}>
       <span className="mode-switch-thumb" aria-hidden="true" />
       {options.map(option => (
         <button key={option.value} type="button" aria-pressed={mode === option.value} onFocus={() => { void loadFancy(); }} onClick={event => choose(option.value, event)}>

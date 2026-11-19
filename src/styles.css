@@ -51,6 +51,31 @@ h2 { font-size: clamp(2.1rem, 4vw, 3.6rem); font-weight: 800; line-height: 1.04;
 .mode-switch[data-mode="fancy"] .mode-switch-thumb { transform: translateX(100%); }
 .mode-switch-spark { display: inline-block; color: var(--accent); transition: transform .5s; }
 .mode-switch button:hover .mode-switch-spark { transform: rotate(180deg) scale(1.2); }
+/* Invitation to try the fancy version (simple mode, first visit) */
+.mode-switch-anchor { position: relative; }
+.mode-switch.is-inviting { animation: invite-ring 2.6s ease-out 2.5s infinite; }
+.mode-switch.is-inviting button:last-of-type { background: linear-gradient(100deg, var(--muted) 30%, #8fbf4f 45%, #3f7a2f 50%, #8fbf4f 55%, var(--muted) 70%) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: invite-shimmer 2.6s ease-in-out infinite; }
+.mode-switch.is-inviting .mode-switch-spark { animation: invite-spin 2.6s ease-in-out infinite; }
+@keyframes invite-ring { 0% { box-shadow: 0 0 0 0 #78945b66; } 70%, 100% { box-shadow: 0 0 0 10px #78945b00; } }
+@keyframes invite-shimmer { 0% { background-position: 100% 0; } 60%, 100% { background-position: 0 0; } }
+@keyframes invite-spin { 0%, 55% { transform: none; } 75% { transform: rotate(180deg) scale(1.35); } 100% { transform: rotate(360deg); } }
+
+.fancy-nudge { position: absolute; z-index: 5; top: calc(100% + .85rem); right: 0; width: min(19rem, calc(100vw - 2rem)); padding: 1rem 1.05rem; border: 1px solid #c5d3c7; border-radius: .9rem; background: #fff; color: var(--ink); box-shadow: 0 1rem 2.5rem #152c2126; font-size: .9rem; animation: nudge-in .5s cubic-bezier(.22, 1, .36, 1) both; }
+.fancy-nudge::before { content: ""; position: absolute; top: -.45rem; right: 2.6rem; width: .8rem; height: .8rem; border-top: 1px solid #c5d3c7; border-left: 1px solid #c5d3c7; background: #fff; transform: rotate(45deg); }
+.fancy-nudge p { color: var(--muted); line-height: 1.45; }
+.fancy-nudge .fancy-nudge-title { margin-bottom: .3rem; color: var(--ink); font-family: var(--heading); font-weight: 800; letter-spacing: -.02em; }
+.fancy-nudge-title span { color: var(--accent); }
+.fancy-nudge-actions { display: flex; align-items: center; gap: .9rem; margin-top: .8rem; }
+.fancy-nudge-go { min-height: 2.4rem; padding: .4rem .9rem; border: 0; border-radius: 999px; background: var(--green); color: #fff; font-size: .86rem; font-weight: 700; }
+.fancy-nudge-go:hover { background: #32604e; }
+.fancy-nudge-later { padding: .3rem 0; border: 0; background: none; color: var(--muted); font-size: .86rem; font-weight: 600; text-decoration: underline; text-underline-offset: .2em; }
+.fancy-nudge-later:hover { color: var(--ink); }
+@keyframes nudge-in { from { opacity: 0; transform: translateY(-.5rem) scale(.97); } }
+@media (prefers-reduced-motion: reduce) {
+  .mode-switch.is-inviting, .mode-switch.is-inviting button:last-of-type, .mode-switch.is-inviting .mode-switch-spark, .fancy-nudge { animation: none; }
+  .mode-switch.is-inviting button:last-of-type { color: var(--green); background: none; }
+}
+
 .mode-loading { min-height: 100vh; background: #060d0a; }
 html[data-mode="fancy"] { background: #060d0a; }
 
@@ -196,6 +221,10 @@ html[data-mode="fancy"] { background: #060d0a; }
   .section-heading, .contact-inner { align-items: start; flex-direction: column; }
   .section-heading { gap: .55rem; }
   .project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topbar { position: relative; }
+  .mode-switch-anchor { position: static; }
+  .fancy-nudge { top: 4rem; right: 0; width: min(100%, 24rem); }
+  .fancy-nudge::before { right: 6.9rem; }
 }
 @media (max-width: 420px) {
   .topbar { gap: .7rem; }
@@ -204,6 +233,7 @@ html[data-mode="fancy"] { background: #060d0a; }
   .brand span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .header-actions { gap: .4rem; }
   .mode-switch button { min-height: 2.1rem; padding-inline: .6rem; font-size: .8rem; }
+  .fancy-nudge::before { right: 6.1rem; }
   .nav-resume { min-height: 2.35rem; padding-inline: .65rem; font-size: .84rem; }
   .intro h1 { font-size: clamp(2.85rem, 11.6vw, 3.5rem); }
   .impact dt { font-size: .77rem; line-height: 1.3; }

@@ -1,4 +1,5 @@
 import { profile } from '../data/profile';
+import { FancyNudge } from './FancyNudge';
 import { ModeSwitch } from './ModeSwitch';
 
 export function Header() {
@@ -15,7 +16,10 @@ export function Header() {
           <a href="#contact">Contact</a>
         </nav>
         <div className="header-actions">
-          <ModeSwitch />
+          <div className="mode-switch-anchor">
+            <ModeSwitch />
+            <FancyNudge />
+          </div>
           <a className="button button-outline nav-resume" href={profile.resume} download="Phurin-Taengsriwan-Resume.pdf">Résumé</a>
         </div>
       </div>
