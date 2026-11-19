@@ -1,3 +1,4 @@
+import { impact } from '../data/content';
 import { profile } from '../data/profile';
 
 export function Intro() {
@@ -18,9 +19,7 @@ export function Intro() {
         </div>
       </div>
       <dl className="impact">
-        <div><dt>Professional experience</dt><dd>3+ years</dd></div>
-        <div><dt>Employees on TTB’s banking platform</dt><dd>10,000+</dd></div>
-        <div><dt>Downloads for STA Friends</dt><dd>100,000+</dd></div>
+        {impact.map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.display}</dd></div>)}
       </dl>
     </section>
   );

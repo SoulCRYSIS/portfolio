@@ -1,4 +1,5 @@
 import { profile } from '../data/profile';
+import { ModeSwitch } from './ModeSwitch';
 
 export function Header() {
   return (
@@ -13,7 +14,10 @@ export function Header() {
           <a href="#work">Work</a>
           <a href="#contact">Contact</a>
         </nav>
-        <a className="button button-outline nav-resume" href={profile.resume} download="Phurin-Taengsriwan-Resume.pdf">Résumé</a>
+        <div className="header-actions">
+          <ModeSwitch />
+          <a className="button button-outline nav-resume" href={profile.resume} download="Phurin-Taengsriwan-Resume.pdf">Résumé</a>
+        </div>
       </div>
     </header>
   );

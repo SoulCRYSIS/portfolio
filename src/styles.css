@@ -40,7 +40,21 @@ h2 { font-size: clamp(2.1rem, 4vw, 3.6rem); font-weight: 800; line-height: 1.04;
 .topbar nav { display: flex; gap: clamp(1rem, 2.5vw, 2.5rem); font-size: .94rem; color: var(--muted); }
 .topbar nav a { font-weight: 600; text-decoration: none; }
 .topbar nav a:hover, .brand:hover { color: #395f32; text-decoration: underline; text-underline-offset: .3em; }
-.nav-resume { justify-self: end; }
+.header-actions { display: flex; align-items: center; justify-self: end; gap: .6rem; }
+
+/* Simple / Fancy switch (restyled by the fancy version under .fx) */
+.mode-switch { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: .2rem; border: 1px solid #c5d3c7; border-radius: 999px; background: #fff; }
+.mode-switch button { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: .3rem; min-height: 2.3rem; padding: .3rem .8rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: .84rem; font-weight: 700; transition: color .25s; }
+.mode-switch button[aria-pressed="true"] { color: #fff; }
+.mode-switch button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+.mode-switch-thumb { position: absolute; inset: .2rem auto .2rem .2rem; width: calc(50% - .2rem); border-radius: 999px; background: var(--green); transition: transform .45s cubic-bezier(.65, 0, .25, 1); }
+.mode-switch[data-mode="fancy"] .mode-switch-thumb { transform: translateX(100%); }
+.mode-switch-spark { display: inline-block; color: var(--accent); transition: transform .5s; }
+.mode-switch button:hover .mode-switch-spark { transform: rotate(180deg) scale(1.2); }
+.mode-loading { min-height: 100vh; background: #060d0a; }
+html[data-mode="fancy"] { background: #060d0a; }
+
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 .button { display: inline-flex; justify-content: center; align-items: center; min-height: 2.9rem; padding: .65rem 1.05rem; border: 1px solid transparent; border-radius: .55rem; font-size: .93rem; font-weight: 700; line-height: 1.2; text-decoration: none; }
 .button-primary { background: var(--green); color: #fff; }
 .button-primary:hover { background: #32604e; }
@@ -187,6 +201,9 @@ h2 { font-size: clamp(2.1rem, 4vw, 3.6rem); font-weight: 800; line-height: 1.04;
   .topbar { gap: .7rem; }
   .brand { font-size: .88rem; gap: .42rem; }
   .brand-photo { width: 1.95rem; }
+  .brand span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .header-actions { gap: .4rem; }
+  .mode-switch button { min-height: 2.1rem; padding-inline: .6rem; font-size: .8rem; }
   .nav-resume { min-height: 2.35rem; padding-inline: .65rem; font-size: .84rem; }
   .intro h1 { font-size: clamp(2.85rem, 11.6vw, 3.5rem); }
   .impact dt { font-size: .77rem; line-height: 1.3; }

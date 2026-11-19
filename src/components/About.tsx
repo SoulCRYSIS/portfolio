@@ -1,9 +1,4 @@
-const skills = [
-  ['Web', 'React, Next.js, TypeScript, JavaScript'],
-  ['Mobile', 'Flutter, Dart, Kotlin, Bloc'],
-  ['Backend & data', 'Node.js, Fastify, Firebase, Firestore Enterprise, Algolia, PostgreSQL'],
-  ['Testing & delivery', 'Unit and integration tests, Jenkins, Sonar, Melos'],
-];
+import { skills } from '../data/content';
 
 export function About() {
   return (
