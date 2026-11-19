@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { MouseEvent } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import { hasSeenFancy, loadFancy, markFancySeen, useMode } from '../mode';
 
 /** A callout under the mode switch inviting first-time viewers to try the fancy version. */
@@ -7,13 +7,11 @@ export function FancyNudge() {
   const { switchMode } = useMode();
   const [visible, setVisible] = useState(false);
 
+
   useEffect(() => {
     if (hasSeenFancy()) return;
-    const timer = window.setTimeout(() => {
-      setVisible(true);
-      void loadFancy(); // Warm the bundle so "Show me" switches instantly.
-    }, 2500);
-    return () => clearTimeout(timer);
+    setVisible(true);
+    void loadFancy(); // Warm the bundle so the switch is instant.
   }, []);
 
   useEffect(() => {
@@ -32,13 +30,14 @@ export function FancyNudge() {
 
   if (!visible) return null;
   return (
-    <div className="fancy-nudge" role="dialog" aria-label="Try the fancy version" aria-modal="false">
-      <p className="fancy-nudge-title"><span aria-hidden="true">✦</span> There’s a fancier version of this site</p>
-      <p>An interactive hero, a 3D case study, a ⌘K menu and a small typing game. Same content, more frontend.</p>
-      <div className="fancy-nudge-actions">
-        <button type="button" className="fancy-nudge-go" onClick={tryIt}>Show me ✦</button>
-        <button type="button" className="fancy-nudge-later" onClick={dismiss}>Maybe later</button>
-      </div>
-    </div>
+    <>
+      <button type="button" className="fancy-nudge" onClick={tryIt} aria-label="Try the fancy version">
+        <span className="fn-burst" aria-hidden="true">
+          <i className="fn-ring" /><i className="fn-ring fn-ring-2" />
+          {Array.from({ length: 10 }, (_, i) => <b key={i} style={{ '--a': `${i * 36}deg`, '--d': `${3.2 + (i % 3) * .6}rem` } as CSSProperties}>✦</b>)}
+        </span>
+        Try this! <span aria-hidden="true">✦</span>
+      </button>
+    </>
   );
 }
