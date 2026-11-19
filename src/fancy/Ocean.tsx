@@ -1,97 +1,29 @@
 import { useEffect, useRef } from 'react';
 import { prefersReducedMotion } from './hooks';
+import { C, Glyphs, Grid } from './ocean/grid';
+import { Fish, Jelly, Octopus, Shark, Turtle, rand } from './ocean/creatures';
+import type { Food, World } from './ocean/creatures';
 
 /* ───────────────────────────────────────────────────────────────
-   ASCII ocean drawn on a fixed canvas behind the fancy site:
-   a shimmering water field, drifting jellyfish, fish schools that
-   swim away from the cursor, an octopus, the odd whale, bubbles,
-   and a seabed (seaweed + crab) that rises near the end of the page.
+   ASCII ocean behind the fancy site. Everything is rasterised into
+   a character grid each frame: shimmering water, procedural
+   creatures with steering AI (see ocean/creatures.ts), food,
+   bubbles, ink, and a seabed near the end of the page.
+
+   Interaction: moving the cursor lights the water and scares fish;
+   resting it makes curious fish and the turtle come to look;
+   clicking sends a ripple and drops food the fish race to eat.
    ─────────────────────────────────────────────────────────────── */
 
-type Sprite = { frames: string[][]; color: string; alpha: number };
-
-const lines = (art: string) => art.replace(/^\n/, '').split('\n');
-
-const JELLY: Sprite = {
-  color: '200, 170, 255',
-  alpha: 0.42,
-  frames: [
-    lines(`
-  .-"""-.
- /  . .  \\
- \\_.-~-._/
-  ( ( ( (
-   ) ) ) )
-  ( ( ( (
-   ) ) )`),
-    lines(`
-  .-"""-.
- /  . .  \\
- \\_.-~-._/
-   ) ) ) )
-  ( ( ( (
-   ) ) ) )
-    ( ( (`),
-  ],
-};
-
-const OCTOPUS: Sprite = {
-  color: '255, 160, 140',
-  alpha: 0.38,
-  frames: [
-    lines(`
-    .---.
-   ( o o )
-   (  ~  )
-   /|/|\\|\\
-  / / | \\ \\
-  \\ \\ | / /`),
-    lines(`
-    .---.
-   ( o o )
-   (  ~  )
-   \\|\\|/|/
-    \\ \\|/ /
-   / / | \\ \\`),
-  ],
-};
-
-const WHALE: Sprite = {
-  color: '140, 200, 255',
-  alpha: 0.32,
-  frames: [
-    lines(`
-              .
-             ":"
-       .-''''''''''-.       _
-     .'  o            '.__.' )
-    <   ___              __ <
-     '-'   '-.______.--''  '._)`),
-    lines(`
-             . .
-             ":"
-       .-''''''''''-.        _
-     .'  o            '.__.-' )
-    <   ___              __  <
-     '-'   '-.______.--''   '-)`),
-  ],
-};
-
-const FISH_RIGHT = ['><>', '><))°>', '><(((°>', '>=>'];
-const FISH_LEFT = ['<><', '<°((><', '<°)))><', '<=<'];
-const FISH_COLORS = ['200, 245, 106', '110, 231, 183', '255, 197, 107', '160, 220, 255'];
-
-const CRAB = [['(\\/)(°,,,°)(\\/)'], ['(\\/) (°,,,°) (\\/)']];
+const FONT_SIZE = 10;
+const LINE = 11;
+const FONT = `${FONT_SIZE}px "JetBrains Mono", ui-monospace, Menlo, monospace`;
 const WATER = ['.', '-', '~', '≈'];
+const WATER_LIT = [1, 2, 3, 3];
 
-interface Drifter { kind: 'jelly' | 'octopus' | 'whale'; x: number; y: number; vx: number; vy: number; phase: number; ix: number; iy: number; spooked: number }
-interface Ink { x: number; y: number; vx: number; vy: number; born: number; char: string }
-interface Ripple { x: number; y: number; born: number }
-interface Fish { x: number; y: number; vx: number; art: string; color: string; phase: number; flee: number }
 interface Bubble { x: number; y: number; vy: number; phase: number; size: number }
-
-const rand = (min: number, max: number) => min + Math.random() * (max - min);
-const pick = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
+interface Particle { x: number; y: number; vx: number; vy: number; born: number; life: number; char: string; color: number }
+interface Ripple { x: number; y: number; born: number }
 
 export function Ocean() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -102,193 +34,202 @@ export function Ocean() {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     const reduce = prefersReducedMotion();
-    const FONT_SIZE = 13;
-    const LINE = 15;
-    let charW = 7.8;
-    let width = 0;
-    let height = 0;
+    const grid = new Grid();
+    let glyphs = new Glyphs(FONT, 6, LINE, 1);
+    let dpr = 1;
     let raf = 0;
     let lastFrame = 0;
     let lastScroll = window.scrollY;
-    let whaleTimer = performance.now() + rand(8000, 16000);
-    const pointer = { x: -9999, y: -9999 };
 
-    const drifters: Drifter[] = [];
-    const fish: Fish[] = [];
     const bubbles: Bubble[] = [];
-    const ink: Ink[] = [];
+    const particles: Particle[] = [];
     const ripples: Ripple[] = [];
-    const SPRITE_SIZE = { jelly: [10, 7], octopus: [12, 6], whale: [30, 6] } as const;
+    const jellies: Jelly[] = [];
+    let octopus: Octopus | null = null;
+    let turtle: Turtle | null = null;
+    const crab = { x: 120, dir: 1, blinkUntil: 0 };
 
-    const setFont = () => {
-      ctx.font = `${FONT_SIZE}px "JetBrains Mono", ui-monospace, Menlo, monospace`;
-      ctx.textBaseline = 'top';
-      charW = ctx.measureText('M').width || 7.8;
+    /** Soft glow sprite, drawn under the grid (cheaper than shadowBlur). */
+    const glowSprite = (() => {
+      const size = 128;
+      const image = document.createElement('canvas');
+      image.width = image.height = size;
+      const g = image.getContext('2d');
+      if (g) {
+        const gradient = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        gradient.addColorStop(0, 'rgba(200, 170, 255, 0.5)');
+        gradient.addColorStop(0.45, 'rgba(200, 170, 255, 0.16)');
+        gradient.addColorStop(1, 'rgba(200, 170, 255, 0)');
+        g.fillStyle = gradient;
+        g.fillRect(0, 0, size, size);
+      }
+      return image;
+    })();
+    const glows: [number, number, number, number][] = [];
+
+    const spawnBubble = (x = rand(0, world.w), y = world.h + rand(0, 80), size = Math.random()) => {
+      if (bubbles.length < 80) bubbles.push({ x, y, vy: -rand(0.3, 0.8) * (0.6 + size * 0.6), phase: rand(0, 10), size });
+    };
+
+    const world: World = {
+      w: 0, h: 0, t: 0, now: 0, k: 1, dim: 0.85, grid,
+      pointer: { x: -9999, y: -9999, vx: 0, vy: 0, lastMove: -9999 },
+      food: [], fish: [], shark: null,
+      glow: (x, y, size, alpha) => { glows.push([x, y, size, alpha]); },
+      bubble: (x, y, size = Math.random()) => spawnBubble(x, y, size),
+      burst: (x, y, count, chars, color, speed, life) => {
+        const now = performance.now();
+        for (let i = 0; i < count; i++) {
+          const angle = rand(0, Math.PI * 2);
+          const v = rand(0.2, 1) * speed;
+          particles.push({ x, y, vx: Math.cos(angle) * v, vy: Math.sin(angle) * v, born: now, life, char: chars[Math.floor(Math.random() * chars.length)], color });
+        }
+      },
+    };
+
+    const small = () => world.w < 700;
+
+    const measure = () => {
+      ctx.font = FONT;
+      const cw = Math.max(5, ctx.measureText('M').width);
+      grid.resize(world.w, world.h, cw, LINE);
+      glyphs = new Glyphs(FONT, cw, LINE, dpr);
     };
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+      dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      world.w = window.innerWidth;
+      world.h = window.innerHeight;
+      world.dim = small() ? 0.5 : 0.85;
+      canvas.width = world.w * dpr;
+      canvas.height = world.h * dpr;
+      canvas.style.width = `${world.w}px`;
+      canvas.style.height = `${world.h}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      setFont();
+      measure();
     };
-
-    const small = () => width < 700;
-    /** Creatures are dimmer on narrow screens, where they sit behind body text. */
-    const dim = () => (small() ? 0.5 : 0.85);
-
-    const spawnJelly = (anywhere = false) => drifters.push({
-      kind: 'jelly', x: rand(0, width - 80), y: anywhere ? rand(0, height) : height + rand(20, 200),
-      vx: rand(-0.08, 0.08), vy: -rand(0.12, 0.28), phase: rand(0, 10), ix: 0, iy: 0, spooked: 0,
-    });
-    const spawnOctopus = () => drifters.push({
-      kind: 'octopus', x: rand(width * 0.55, width - 120), y: height + 60, vx: rand(-0.1, 0.05), vy: -rand(0.18, 0.3), phase: rand(0, 10), ix: 0, iy: 0, spooked: 0,
-    });
-    const spawnWhale = () => {
-      const toLeft = true; // The art faces left.
-      drifters.push({ kind: 'whale', x: toLeft ? width + 40 : -300, y: rand(height * 0.2, height * 0.65), vx: -rand(0.35, 0.5), vy: 0, phase: 0, ix: 0, iy: 0, spooked: 0 });
-    };
-    const spawnSchool = (anywhere = false) => {
-      const right = Math.random() < 0.5;
-      const color = pick(FISH_COLORS);
-      const baseY = rand(height * 0.1, height * 0.9);
-      const baseX = anywhere ? rand(0, width) : right ? -60 : width + 60;
-      const speed = rand(0.5, 1.1) * (right ? 1 : -1);
-      const count = Math.floor(rand(3, small() ? 5 : 8));
-      for (let i = 0; i < count; i++) {
-        const variant = Math.random() < 0.75 ? 0 : Math.floor(rand(1, FISH_RIGHT.length));
-        fish.push({
-          x: baseX - (right ? 1 : -1) * rand(0, 140), y: baseY + rand(-50, 50), vx: speed * rand(0.9, 1.1),
-          art: right ? FISH_RIGHT[variant] : FISH_LEFT[variant], color, phase: rand(0, 10), flee: 0,
-        });
-      }
-    };
-    const spawnBubble = (x = rand(0, width), y = height + rand(0, 80)) => bubbles.push({
-      x, y, vy: -rand(0.25, 0.7), phase: rand(0, 10), size: Math.random(),
-    });
 
     const populate = () => {
-      drifters.length = 0; fish.length = 0; bubbles.length = 0;
-      for (let i = 0; i < (small() ? 1 : 4); i++) spawnJelly(true);
-      for (let i = 0; i < (small() ? 1 : 2); i++) spawnSchool(true);
-      for (let i = 0; i < 24; i++) spawnBubble(rand(0, width), rand(0, height));
+      const { w, h } = world;
+      const now = performance.now();
+      world.fish.length = 0;
+      world.shark = null;
+      turtle = null;
+      const school = (species: 'minnow' | 'tang' | 'snapper', count: number, spread: number) => {
+        const cx = rand(w * 0.15, w * 0.85), cy = rand(h * 0.25, h * 0.8), angle = rand(0, Math.PI * 2);
+        for (let i = 0; i < count; i++) world.fish.push(new Fish(species, cx + rand(-spread, spread), cy + rand(-spread, spread) * 0.6, angle + rand(-0.4, 0.4)));
+      };
+      if (small()) {
+        school('minnow', 7, 60);
+        school('tang', 2, 80);
+        school('snapper', 1, 0);
+      } else {
+        school('minnow', 9, 90);
+        school('minnow', 8, 90);
+        school('tang', 5, 140);
+        school('snapper', 2, 220);
+        world.shark = new Shark(rand(-100, w + 100), rand(h * 0.3, h * 0.7), now);
+        turtle = new Turtle(rand(w * 0.2, w * 0.8), rand(h * 0.3, h * 0.7));
+      }
+      jellies.length = 0;
+      for (let i = 0; i < (small() ? 1 : 2); i++) jellies.push(new Jelly(rand(60, w - 60), rand(h * 0.2, h)));
+      octopus = new Octopus(rand(w * 0.3, w * 0.8), rand(h * 0.5, h * 0.85));
+      for (let i = 0; i < 24; i++) spawnBubble(rand(0, w), rand(0, h));
     };
 
-    const drawSprite = (sprite: Sprite, x: number, y: number, frame: number, fade = 1) => {
-      const art = sprite.frames[frame % sprite.frames.length];
-      ctx.fillStyle = `rgba(${sprite.color}, ${sprite.alpha * fade * dim()})`;
-      art.forEach((row, i) => ctx.fillText(row, x, y + i * LINE));
-    };
+    /* ── Water ──────────────────────────────────────────────── */
 
-    /** Light rippling through water, as sparse ASCII characters. */
     const drawWater = (now: number, scroll: number) => {
       const t = now / 1000;
-      const stepX = charW * 2;
-      const stepY = LINE * 1.15;
-      const rowShift = scroll * 0.004;
+      const { cols, rows, cw, ch } = grid;
+      const depthLight = Math.max(0.25, 1 - scroll / 6000);
+      const { x: px, y: py } = world.pointer;
+      const lit = now - world.pointer.lastMove < 2500;
       for (let i = ripples.length - 1; i >= 0; i--) if (now - ripples[i].born > 2400) ripples.splice(i, 1);
-      for (let row = 0; row * stepY < height; row++) {
-        const y0 = row * stepY;
-        const r = row + rowShift * 10;
-        for (let col = 0; col * stepX < width; col++) {
-          const x0 = col * stepX + (row % 2) * charW;
-          let v = Math.sin(col * 0.16 + t * 0.6 + r * 0.05)
-            + Math.sin(r * 0.27 - t * 0.45 + col * 0.04)
-            + Math.sin((col - r) * 0.07 + t * 0.3);
-
-          // The cursor lights up the water around it and pushes it aside.
-          const dx = x0 - pointer.x;
-          const dy = y0 - pointer.y;
-          const dist = Math.hypot(dx, dy) || 1;
-          const force = Math.max(0, 1 - dist / 170);
-          v += force * 2.2;
-          let x = x0 + (dx / dist) * force * force * 22;
-          let y = y0 + (dy / dist) * force * force * 22;
-
-          // Click ripples travel outward as a bright ring.
-          let ring = 0;
+      const rowShift = scroll * 0.012;
+      for (let r = 0; r < rows; r++) {
+        const y = (r + 0.5) * ch;
+        const rr = r + rowShift;
+        const light = depthLight * (0.5 + 0.5 * (1 - y / world.h));
+        const rowA = rr * 0.032 + t * 0.6, rowB = rr * 0.17 - t * 0.45, rowC = -rr * 0.045 + t * 0.3;
+        const nearRow = lit && Math.abs(y - py) < 170;
+        for (let c = r & 1; c < cols; c += 2) {
+          const x = (c + 0.5) * cw;
+          let v = Math.sin(c * 0.062 + rowA) + Math.sin(rowB + c * 0.016) + Math.sin(c * 0.027 + rowC);
+          let glow = 0;
+          if (nearRow && Math.abs(x - px) < 170) {
+            const f = Math.max(0, 1 - Math.hypot(x - px, y - py) / 170);
+            v += f * 2.2;
+            glow += f;
+          }
           for (const ripple of ripples) {
             const age = now - ripple.born;
-            const rd = Math.hypot(x0 - ripple.x, y0 - ripple.y) || 1;
-            const band = Math.exp(-((rd - age * 0.42) ** 2) / 700) * (1 - age / 2400);
-            ring += band;
-            x += ((x0 - ripple.x) / rd) * band * 10;
-            y += ((y0 - ripple.y) / rd) * band * 10;
+            const gap = Math.hypot(x - ripple.x, y - ripple.y) - age * 0.42;
+            if (gap > 60 || gap < -60) continue;
+            const band = Math.exp(-(gap * gap) / 500) * (1 - age / 2400);
+            v += band * 3;
+            glow += band;
           }
-          v += ring * 3;
-
           if (v < 1.25) continue;
           const level = Math.min(3, Math.floor((v - 1.25) * 2.2));
-          // Brighter near the "surface" (top of the page), dimmer as you go deeper.
-          const light = Math.max(0.25, 1 - scroll / 6000) * (0.5 + 0.5 * (1 - y0 / height));
-          const glow = Math.min(1, force + ring);
-          const alpha = (0.05 + level * 0.035) * light + glow * 0.32;
-          ctx.fillStyle = glow > 0.05
-            ? `rgba(${Math.round(150 + 50 * glow)}, ${Math.round(220 + 25 * glow)}, ${Math.round(200 - 90 * glow)}, ${alpha})`
-            : `rgba(150, 220, 200, ${alpha})`;
-          ctx.fillText(WATER[level], x, y);
+          glow = Math.min(1, glow);
+          grid.put(c, r, WATER[level], glow > 0.08 ? WATER_LIT[Math.min(3, Math.floor(glow * 3.5))] : C.WATER, (0.06 + level * 0.04) * light + glow * 0.35, 0);
         }
       }
     };
 
-    /** Creatures within reach of the cursor get spooked and dart away. */
-    const spook = (d: Drifter, now: number) => {
-      const [cols, rows] = SPRITE_SIZE[d.kind];
-      const cx = d.x + (cols * charW) / 2;
-      const cy = d.y + (rows * LINE) / 2;
-      const dx = cx - pointer.x;
-      const dy = cy - pointer.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      const reach = d.kind === 'whale' ? 150 : 90;
-      if (dist > reach || now < d.spooked) return;
-      d.spooked = now + 900;
-      const power = d.kind === 'whale' ? 1.2 : 3.5;
-      d.ix += (dx / dist) * power;
-      d.iy += (dy / dist) * power;
-      if (d.kind === 'octopus') {
-        for (let i = 0; i < 26; i++) {
-          const angle = rand(0, Math.PI * 2);
-          const speed = rand(0.2, 1.4);
-          ink.push({ x: cx, y: cy, vx: Math.cos(angle) * speed - dx / dist * 0.4, vy: Math.sin(angle) * speed - dy / dist * 0.4, born: now, char: pick(['#', '%', '@', '*', '&']) });
-        }
-      }
-      if (d.kind === 'jelly') for (let i = 0; i < 3; i++) spawnBubble(cx + rand(-10, 10), cy + rows * LINE * 0.6);
-    };
+    /* ── Seabed ─────────────────────────────────────────────── */
 
-    const drawSeabed = (t: number, rise: number) => {
+    const drawSeabed = (t: number, now: number, k: number, rise: number) => {
       if (rise <= 0) return;
-      const base = height - rise * LINE * 9.5;
-      // Seaweed
-      ctx.fillStyle = `rgba(110, 231, 183, ${0.3 * rise})`;
-      const stalks = Math.floor(width / 90);
+      const { w, h, pointer } = world;
+      const floor = h - rise * LINE * 4;
+      // Kelp: sways with the current and bends away from the cursor.
+      const stalks = Math.floor(w / 70);
       for (let s = 0; s < stalks; s++) {
-        const x0 = s * 90 + ((s * 37) % 50);
-        const tall = 4 + ((s * 7) % 4);
-        for (let i = 0; i < tall; i++) {
-          const sway = Math.sin(t * 1.2 + s + i * 0.6) * (i * 0.9);
-          ctx.fillText(i % 2 ? ')' : '(', x0 + sway, base + (7 - i) * LINE);
+        const x0 = s * 70 + ((s * 37) % 40);
+        const tall = 70 + ((s * 53) % 70);
+        let lx = x0, ly = floor;
+        const segs = 9;
+        for (let i = 1; i <= segs; i++) {
+          const f = i / segs;
+          const y = floor - tall * f;
+          let x = x0 + Math.sin(t * 1.1 + s * 1.7 - f * 2.2) * f * 14;
+          const dx = x - pointer.x, dy = y - pointer.y;
+          const d = Math.hypot(dx, dy);
+          if (d < 90) x += Math.sign(dx || 1) * (90 - d) * 0.45 * f;
+          grid.line(lx, ly, x, y, C.WEED, 0.45 * rise * (1 - f * 0.4), 0.45 * rise * (1 - f * 0.5), 2);
+          if (i % 2 === 0 && i < segs) grid.putPx(x + (i % 4 ? 5 : -5), y, i % 4 ? ')' : '(', C.WEED, 0.3 * rise, 2);
+          lx = x; ly = y;
         }
       }
       // Sand
-      ctx.fillStyle = `rgba(255, 210, 150, ${0.16 * rise})`;
-      let sand = '';
-      for (let i = 0; i < width / charW; i++) sand += (i * 7) % 5 === 0 ? '_' : (i * 3) % 7 === 0 ? ',' : '.';
-      ctx.fillText(sand, 0, base + 8 * LINE);
-      // Crab, scuttling back and forth
-      const span = Math.max(1, width - 160);
-      const pos = (Math.sin(t * 0.25) * 0.5 + 0.5) * span;
-      ctx.fillStyle = `rgba(255, 140, 120, ${0.55 * rise})`;
-      ctx.fillText(CRAB[Math.floor(t * 4) % 2][0], 40 + pos, base + 7 * LINE);
+      for (let x = 0; x < w; x += grid.cw) {
+        const i = Math.floor(x / grid.cw);
+        grid.putPx(x, floor + 2, (i * 7) % 5 === 0 ? '_' : (i * 3) % 7 === 0 ? ',' : '.', C.SAND, 0.22 * rise, 2);
+      }
+      grid.putPx(w * 0.72, floor - 4, ['*', '✶', '✳', '✶'][Math.floor(t * 1.5) % 4], C.STAR, 0.55 * rise, 2);
+
+      // Crab: scuttles in bursts, snaps its claws, blinks, and hurries away from the cursor.
+      const scared = Math.abs(pointer.x - crab.x) < 90 && Math.abs(pointer.y - floor) < 80;
+      if (scared) crab.dir = pointer.x < crab.x + 40 ? 1 : -1;
+      const scuttle = scared ? 1 : Math.max(0, Math.sin(t * 1.3));
+      crab.x += crab.dir * scuttle * (scared ? 3.5 : 1.6) * k;
+      if (crab.x < 20) crab.dir = 1;
+      if (crab.x > w - 130) crab.dir = -1;
+      if (Math.random() < 0.004) crab.dir *= -1;
+      if (Math.random() < 0.006) crab.blinkUntil = now + 160;
+      const snap = Math.sin(t * 7) > 0.6;
+      const eyes = now < crab.blinkUntil ? '-,,,-' : '°,,,°';
+      const hop = scuttle > 0.1 ? Math.abs(Math.sin(t * 12)) * -3 : 0;
+      grid.text(crab.x, floor - LINE + hop, `${snap ? '(\\/)' : '(\\_/)'}(${eyes})${snap ? '(\\/)' : '(\\_/)'}`, C.CRAB, 0.7 * rise, 6);
     };
+
+    /* ── Frame ──────────────────────────────────────────────── */
 
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
-      if (now - lastFrame < 33) return; // ~30 fps is plenty for ASCII.
+      if (now - lastFrame < 12) return; // ~60 fps cap on high-refresh screens.
       const dt = Math.min(50, now - lastFrame);
       lastFrame = now;
       render(now, dt);
@@ -297,117 +238,123 @@ export function Ocean() {
     const render = (now: number, dt: number) => {
       const t = now / 1000;
       const scroll = window.scrollY;
-      const scrollDelta = scroll - lastScroll;
+      const parallax = -(scroll - lastScroll) * 0.3;
       lastScroll = scroll;
-      ctx.clearRect(0, 0, width, height);
+      const k = dt / 16;
+      Object.assign(world, { t, now, k });
+      world.pointer.vx *= 0.85;
+      world.pointer.vy *= 0.85;
 
+      // Diving: everything drifts up as you scroll down.
+      if (parallax) {
+        for (const f of world.fish) f.shift(parallax);
+        world.shark?.shift(parallax);
+        jellies.forEach(j => j.shift(parallax));
+        octopus?.shift(parallax);
+        turtle?.shift(parallax);
+        for (const f of world.food) f.y += parallax;
+        for (const b of bubbles) b.y += parallax * 0.8;
+        for (const p of particles) p.y += parallax;
+      }
+
+      grid.clear();
+      glows.length = 0;
       drawWater(now, scroll);
 
-      // Swimming upward through the page: things drift up as you scroll down.
-      const parallax = -scrollDelta * 0.3;
-      const k = dt / 16;
+      for (const f of world.fish) f.update(world);
+      world.shark?.update(world);
+      jellies.forEach(j => j.update(world));
+      octopus?.update(world);
+      turtle?.update(world);
 
-      for (let i = drifters.length - 1; i >= 0; i--) {
-        const d = drifters[i];
-        spook(d, now);
-        d.x += d.ix * k;
-        d.y += d.iy * k;
-        d.ix *= 0.94;
-        d.iy *= 0.94;
-        if (d.kind === 'jelly') {
-          // Jellyfish pulse: quick push, slow glide.
-          const pulse = Math.max(0, Math.sin(t * 1.6 + d.phase)) ** 3;
-          d.y += (d.vy * (0.4 + pulse * 2.2)) * k + parallax;
-          d.x += (d.vx + Math.sin(t * 0.4 + d.phase) * 0.06) * k;
-          drawSprite(JELLY, d.x, d.y, Math.floor(t * 2 + d.phase));
-        } else if (d.kind === 'octopus') {
-          const pulse = Math.max(0, Math.sin(t * 2 + d.phase)) ** 2;
-          d.y += d.vy * (0.3 + pulse * 2) * k + parallax;
-          d.x += d.vx * k;
-          drawSprite(OCTOPUS, d.x, d.y, Math.floor(t * 2.5));
-        } else {
-          d.x += d.vx * k;
-          d.y += Math.sin(t * 0.5) * 0.08 * k + parallax * 0.5;
-          drawSprite(WHALE, d.x, d.y, Math.floor(t * 1.5));
-        }
-        const gone = d.y < -160 || d.y > height + 400 || d.x < -420 || d.x > width + 420;
-        if (gone) drifters.splice(i, 1);
+      jellies.forEach(j => j.draw(world));
+      octopus?.draw(world);
+      turtle?.draw(world);
+      for (const f of world.fish) f.draw(world);
+      world.shark?.draw(world);
+
+      // Food sinks with a wobble until eaten.
+      for (let i = world.food.length - 1; i >= 0; i--) {
+        const f = world.food[i];
+        f.y += f.vy * k;
+        f.x += Math.sin(t * 2 + f.phase) * 0.3 * k;
+        if (f.eaten || f.y > world.h + 10) { world.food.splice(i, 1); continue; }
+        grid.putPx(f.x, f.y, '*', C.FOOD, 0.85, 8);
       }
 
-      for (let i = fish.length - 1; i >= 0; i--) {
-        const f = fish[i];
-        const dx = f.x - pointer.x;
-        const dy = f.y - pointer.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < 130) f.flee = Math.min(1, f.flee + 0.15);
-        else f.flee *= 0.96;
-        const away = dist > 0 ? dy / dist : 0;
-        f.x += f.vx * (1 + f.flee * 3) * k;
-        f.y += (Math.sin(t * 2 + f.phase) * 0.25 + away * f.flee * 2.5) * k + parallax * 0.6;
-        ctx.fillStyle = `rgba(${f.color}, ${(0.45 + f.flee * 0.3) * dim()})`;
-        ctx.fillText(f.art, f.x, f.y);
-        if (f.x < -120 || f.x > width + 120 || f.y < -60 || f.y > height + 60) fish.splice(i, 1);
-      }
-
-      for (let i = ink.length - 1; i >= 0; i--) {
-        const p = ink[i];
-        const age = (now - p.born) / 2200;
-        if (age >= 1) { ink.splice(i, 1); continue; }
-        p.x += p.vx * k;
-        p.y += p.vy * k + parallax;
-        p.vx *= 0.96;
-        p.vy *= 0.96;
-        ctx.fillStyle = `rgba(150, 110, 200, ${0.45 * (1 - age)})`;
-        ctx.fillText(p.char, p.x, p.y);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        const age = (now - p.born) / p.life;
+        if (age >= 1) { particles.splice(i, 1); continue; }
+        p.x += p.vx * k; p.y += p.vy * k;
+        p.vx *= 0.96 ** k; p.vy = p.vy * 0.96 ** k + 0.008 * k;
+        grid.putPx(p.x, p.y, p.char, p.color, 0.6 * (1 - age) * world.dim, 7);
       }
 
       for (let i = bubbles.length - 1; i >= 0; i--) {
         const b = bubbles[i];
-        b.y += b.vy * k + parallax * 0.8;
-        b.x += Math.sin(t * 2 + b.phase) * 0.3 * k;
-        const char = b.size > 0.85 ? 'O' : b.size > 0.55 ? 'o' : b.size > 0.25 ? '°' : '.';
-        ctx.fillStyle = `rgba(200, 240, 255, ${0.18 + b.size * 0.25})`;
-        ctx.fillText(char, b.x, b.y);
-        if (b.y < -20 || b.y > height + 120) bubbles.splice(i, 1);
+        b.y += b.vy * k;
+        b.x += Math.sin(t * 2.4 + b.phase) * 0.35 * k;
+        b.size = Math.min(1, b.size + 0.0006 * k);
+        if ((b.y < 20 && b.size > 0.5 && Math.random() < 0.05) || b.y < -20) {
+          if (b.y > -20) world.burst(b.x, b.y, 3, ".·'", C.BUBBLE, 0.8, 450);
+          bubbles.splice(i, 1);
+          continue;
+        }
+        grid.putPx(b.x, b.y, b.size > 0.7 ? 'o' : b.size > 0.35 ? '°' : '.', C.BUBBLE, 0.25 + b.size * 0.3, 7);
       }
+      if (Math.random() < 0.2) spawnBubble();
 
-      // Keep the sea populated.
-      const jellies = drifters.filter(d => d.kind === 'jelly').length;
-      if (jellies < (small() ? 1 : 4) && Math.random() < 0.01) spawnJelly();
-      if (!drifters.some(d => d.kind === 'octopus') && Math.random() < 0.0015) spawnOctopus();
-      if (now > whaleTimer && !small()) { spawnWhale(); whaleTimer = now + rand(35000, 60000); }
-      const schools = new Set(fish.map(f => f.color + Math.sign(f.vx))).size;
-      if (schools < (small() ? 1 : 2) && Math.random() < 0.01) spawnSchool();
-      if (bubbles.length < 28 && Math.random() < 0.2) spawnBubble();
-
-      // Seabed rises into view over the last stretch of the page.
-      const max = document.documentElement.scrollHeight - height;
+      const max = document.documentElement.scrollHeight - world.h;
       const progress = max > 0 ? scroll / max : 0;
-      drawSeabed(t, Math.min(1, Math.max(0, (progress - 0.86) / 0.14)));
+      drawSeabed(t, now, k, Math.min(1, Math.max(0, (progress - 0.86) / 0.14)));
 
-      if (depthRef.current) depthRef.current.textContent = String(Math.round(progress * 180)).padStart(3, '0');
+      ctx.globalAlpha = 1;
+      ctx.clearRect(0, 0, world.w, world.h);
+      for (const [x, y, size, alpha] of glows) {
+        ctx.globalAlpha = Math.min(1, alpha);
+        ctx.drawImage(glowSprite, x - size / 2, y - size / 2, size, size);
+      }
+      glyphs.draw(ctx, grid);
+
+      const depth = String(Math.round(progress * 180)).padStart(3, '0');
+      if (depthRef.current && depthRef.current.textContent !== depth) depthRef.current.textContent = depth;
     };
 
-    const onMove = (event: PointerEvent) => { pointer.x = event.clientX; pointer.y = event.clientY; };
-    const onLeave = () => { pointer.x = -9999; pointer.y = -9999; };
+    /* ── Events ─────────────────────────────────────────────── */
+
+    const onMove = (event: PointerEvent) => {
+      const p = world.pointer;
+      if (p.x > -1000) { p.vx = event.clientX - p.x; p.vy = event.clientY - p.y; }
+      p.x = event.clientX;
+      p.y = event.clientY;
+      p.lastMove = performance.now();
+    };
+    const onLeave = () => { world.pointer.x = -9999; world.pointer.y = -9999; };
     const onDown = (event: PointerEvent) => {
       if ((event.target as Element).closest('a, button, input, label, dialog, .fx-game')) return;
-      ripples.push({ x: event.clientX, y: event.clientY, born: performance.now() });
+      const { clientX: x, clientY: y } = event;
+      const now = performance.now();
+      ripples.push({ x, y, born: now });
       if (ripples.length > 4) ripples.shift();
-      for (let i = 0; i < 7; i++) spawnBubble(event.clientX + rand(-14, 14), event.clientY + rand(-6, 10));
-      // Fish near the splash scatter.
-      for (const f of fish) if (Math.hypot(f.x - event.clientX, f.y - event.clientY) < 220) f.flee = 1;
+      for (let i = 0; i < 6; i++) spawnBubble(x + rand(-12, 12), y + rand(-6, 8), rand(0, 0.7));
+      // Feeding time: a few pellets sink from the click.
+      const food: Food[] = Array.from({ length: Math.floor(rand(3, 6)) }, () => ({ x: x + rand(-18, 18), y: y + rand(-8, 8), vy: rand(0.25, 0.45), phase: rand(0, 10), eaten: false }));
+      world.food.push(...food);
+      if (world.food.length > 30) world.food.splice(0, world.food.length - 30);
+      world.shark?.scare(x, y, now);
     };
     const onVisibility = () => {
       cancelAnimationFrame(raf);
-      if (!document.hidden && !reduce) raf = requestAnimationFrame(frame);
+      if (!document.hidden && !reduce) { lastFrame = performance.now(); raf = requestAnimationFrame(frame); }
     };
     const onScrollStatic = () => render(performance.now(), 16);
 
     resize();
     populate();
-    void document.fonts?.ready.then(setFont);
-    window.addEventListener('resize', resize);
+    void document.fonts?.ready.then(measure);
+    const onResize = () => { const wasSmall = small(); resize(); if (wasSmall !== small()) populate(); };
+    window.addEventListener('resize', onResize);
     if (reduce) {
       render(performance.now(), 16);
       window.addEventListener('scroll', onScrollStatic, { passive: true });
@@ -420,7 +367,7 @@ export function Ocean() {
     }
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onScrollStatic);
       window.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerleave', onLeave);

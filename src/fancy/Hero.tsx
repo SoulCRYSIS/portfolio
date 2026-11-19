@@ -30,25 +30,46 @@ function DotField() {
       if (reduce) draw(0);
     };
 
+    // Dots are grouped by colour and opacity, then each group is filled in one call
+    // (instead of changing fillStyle ~1,700 times per frame).
+    const ENERGY_LEVELS = 6;
+    const ALPHA_LEVELS = 10;
+    const styles: string[] = [];
+    for (let e = 0; e < ENERGY_LEVELS; e++) {
+      for (let a = 0; a < ALPHA_LEVELS; a++) {
+        const energy = e / (ENERGY_LEVELS - 1);
+        const alpha = ((a + 0.5) / ALPHA_LEVELS).toFixed(3);
+        styles.push(e === 0 ? `rgba(150, 200, 175, ${alpha})` : `rgba(${Math.round(150 + 48 * energy)}, ${Math.round(220 + 23 * energy)}, ${Math.round(180 - 73 * energy)}, ${alpha})`);
+      }
+    }
+    const buckets: number[][] = styles.map(() => []);
+
     const draw = (time: number) => {
       pointer.x += (pointer.tx - pointer.x) * 0.12;
       pointer.y += (pointer.ty - pointer.y) * 0.12;
       ctx.clearRect(0, 0, width, height);
       for (let i = ripples.length - 1; i >= 0; i--) if (time - ripples[i].t > 2200) ripples.splice(i, 1);
 
+      for (const bucket of buckets) bucket.length = 0;
+      const rippling = ripples.length > 0;
+
       for (let gx = gap / 2; gx < width; gx += gap) {
+        const colWave = reduce ? 0 : Math.sin(gx * 0.011 + time * 0.0008) * 3;
         for (let gy = gap / 2; gy < height; gy += gap) {
           let x = gx;
-          let y = gy + (reduce ? 0 : Math.sin(gx * 0.011 + time * 0.0008) * 3 + Math.cos(gy * 0.013 - time * 0.0006) * 3);
+          let y = gy + (reduce ? 0 : colWave + Math.cos(gy * 0.013 - time * 0.0006) * 3);
+          let force = 0;
           const dx = x - pointer.x;
           const dy = y - pointer.y;
-          const dist = Math.hypot(dx, dy) || 1;
-          const force = Math.max(0, 1 - dist / 220);
-          x += (dx / dist) * force * force * 26;
-          y += (dy / dist) * force * force * 26;
+          if (dx < 220 && dx > -220 && dy < 220 && dy > -220) {
+            const dist = Math.hypot(dx, dy) || 1;
+            force = Math.max(0, 1 - dist / 220);
+            x += (dx / dist) * force * force * 26;
+            y += (dy / dist) * force * force * 26;
+          }
 
           let wave = 0;
-          for (const ripple of ripples) {
+          if (rippling) for (const ripple of ripples) {
             const age = time - ripple.t;
             const radius = age * 0.5;
             const rd = Math.hypot(gx - ripple.x, gy - ripple.y) || 1;
@@ -62,10 +83,20 @@ function DotField() {
           const fade = Math.min(1, Math.max(0, 1.15 - gy / height));
           const energy = Math.min(1, force + wave);
           const alpha = (0.2 + energy * 0.8) * fade;
-          ctx.fillStyle = energy > 0.05 ? `rgba(${Math.round(150 + 48 * energy)}, ${Math.round(220 + 23 * energy)}, ${Math.round(180 - 73 * energy)}, ${alpha})` : `rgba(150, 200, 175, ${alpha})`;
+          if (alpha < 0.02) continue;
+          const e = energy > 0.05 ? Math.max(1, Math.round(energy * (ENERGY_LEVELS - 1))) : 0;
+          const a = Math.min(ALPHA_LEVELS - 1, Math.floor(alpha * ALPHA_LEVELS));
           const size = 1.5 + energy * 2.4;
-          ctx.fillRect(x - size / 2, y - size / 2, size, size);
+          buckets[e * ALPHA_LEVELS + a].push(x - size / 2, y - size / 2, size);
         }
+      }
+      for (let b = 0; b < buckets.length; b++) {
+        const bucket = buckets[b];
+        if (!bucket.length) continue;
+        ctx.fillStyle = styles[b];
+        ctx.beginPath();
+        for (let i = 0; i < bucket.length; i += 3) ctx.rect(bucket[i], bucket[i + 1], bucket[i + 2], bucket[i + 2]);
+        ctx.fill();
       }
       if (!reduce && visible) raf = requestAnimationFrame(draw);
     };
