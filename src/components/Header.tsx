@@ -1,5 +1,20 @@
+import { profile } from '../data/profile';
+
 export function Header() {
   return (
-    <header className="topbar"><a className="brand" href="#top" aria-label="Phurin Taengsriwan home"><span className="brand-mark">p<span>.</span></span><span>PHURIN<br />TAENGSRIWAN</span></a><nav aria-label="Main navigation"><a href="#experience">Experience</a><a href="#archive">Projects</a><a href="#about">About</a><a className="nav-contact" href="mailto:ohm9411@gmail.com">Get in touch <span>↗</span></a></nav></header>
+    <header className="site-header">
+      <div className="wrap topbar">
+        <a className="brand" href="#top">
+          <img className="brand-photo" src={`${import.meta.env.BASE_URL}assets/profile-image.jpeg`} alt="" />
+          <span>{profile.name}</span>
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="#experience">Experience</a>
+          <a href="#work">Work</a>
+          <a href="#contact">Contact</a>
+        </nav>
+        <a className="button button-outline nav-resume" href={profile.resume} download="Phurin-Taengsriwan-Resume.pdf">Résumé</a>
+      </div>
+    </header>
   );
 }

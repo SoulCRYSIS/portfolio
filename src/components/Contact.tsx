@@ -1,5 +1,19 @@
+import { profile } from '../data/profile';
+
 export function Contact() {
   return (
-    <section className="contact"><div className="wrap contact-inner"><div><div className="eyebrow">04 / CONTACT</div><h2>Contact<br /><em>me.</em></h2><p>For job opportunities or questions about my work, contact me by email.</p></div><div className="contact-actions"><a className="button light" href="mailto:ohm9411@gmail.com">Email me <span>↗</span></a><a className="button resume-download" href="resume.pdf" download="Phurin-Taengsriwan-Resume.pdf">Download resume <span>↓</span></a><div><a href="https://github.com/SoulCRYSIS" target="_blank" rel="noopener noreferrer">GitHub ↗</a><a href="https://www.linkedin.com/in/purin-taengsriwan-135364230/" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a></div></div></div></section>
+    <section id="contact" className="contact" aria-labelledby="contact-title">
+      <div className="wrap contact-inner">
+        <div>
+          <h2 id="contact-title">Get in touch</h2>
+          <a className="contact-email" href={`mailto:${profile.email}`}>{profile.email}</a>
+        </div>
+        <div className="contact-actions">
+          <a className="button button-light" href={profile.resume} download="Phurin-Taengsriwan-Resume.pdf">Download résumé</a>
+          <a href={profile.linkedin} target="_blank" rel="noreferrer">LinkedIn</a>
+          <a href={profile.github} target="_blank" rel="noreferrer">GitHub</a>
+        </div>
+      </div>
+    </section>
   );
 }

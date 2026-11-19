@@ -1,5 +1,27 @@
+import { profile } from '../data/profile';
+
 export function Intro() {
   return (
-    <section id="top" className="intro wrap"><div><div className="eyebrow"><span className="dot"></span> SOFTWARE ENGINEER · FRONTEND & MOBILE</div><h1>Phurin<br /><em>Taengsriwan.</em></h1><p>Software engineer with over two years of professional experience building frontend and mobile applications with Flutter and Kotlin.</p><div className="hero-actions"><a className="button dark" href="#experience">Professional experience <span>↓</span></a><a className="text-link resume-link" href="resume.pdf" target="_blank" rel="noopener">View resume ↗</a><a className="text-link" href="https://github.com/SoulCRYSIS" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div></div><aside className="intro-panel"><span>FOCUS</span><h2>Frontend &<br />mobile development</h2><p>Flutter · Dart · Kotlin · React · TypeScript</p><div className="intro-panel-footer"><span>BASED IN THAILAND</span><span>↓</span></div></aside></section>
+    <section id="top" className="intro wrap" aria-labelledby="intro-title">
+      <div className="intro-main">
+        <div>
+          <p className="eyebrow">Software engineer <span>·</span> Thailand</p>
+          <h1 id="intro-title">Phurin<br />Taengsriwan<span>.</span></h1>
+        </div>
+        <div className="intro-summary">
+          <h2>Frontend &amp; mobile engineer</h2>
+          <p>I build production web and mobile apps with React, TypeScript, Flutter, and Kotlin. I also build Node.js APIs and tools that help teams ship.</p>
+          <div className="actions">
+            <a className="button button-primary" href={profile.resume} target="_blank" rel="noreferrer">View résumé</a>
+            <a className="button button-outline" href="#contact">Get in touch</a>
+          </div>
+        </div>
+      </div>
+      <dl className="impact">
+        <div><dt>Professional experience</dt><dd>3+ years</dd></div>
+        <div><dt>Employees on TTB’s banking platform</dt><dd>10,000+</dd></div>
+        <div><dt>Downloads for STA Friends</dt><dd>100,000+</dd></div>
+      </dl>
+    </section>
   );
 }

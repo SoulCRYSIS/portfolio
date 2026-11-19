@@ -1,5 +1,11 @@
+import { profile } from '../data/profile';
+
 export function Footer() {
   return (
-    <footer className="wrap footer"><span>© 2026 PHURIN TAENGSRIWAN</span><span>SOFTWARE ENGINEER · THAILAND</span><a href="https://github.com/SoulCRYSIS/portfolio" target="_blank" rel="noopener noreferrer">SOURCE CODE ↗</a><a href="#top">BACK TO TOP ↑</a></footer>
+    <footer className="wrap footer">
+      <span>© {new Date().getFullYear()} {profile.name}</span>
+      <a href={`${profile.github}/portfolio`} target="_blank" rel="noreferrer">Site source</a>
+      <a href="#top">Back to top</a>
+    </footer>
   );
 }
