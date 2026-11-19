@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { prefersReducedMotion } from './hooks';
-import { C, Glyphs, Grid } from './ocean/grid';
+import { C, Glyphs, Grid, Layer } from './ocean/grid';
 import { Fish, Jelly, Octopus, Shark, Turtle, rand } from './ocean/creatures';
 import type { Food, World } from './ocean/creatures';
 
@@ -20,6 +20,8 @@ const LINE = 11;
 const FONT = `${FONT_SIZE}px "JetBrains Mono", ui-monospace, Menlo, monospace`;
 const WATER = ['.', '-', '~', '≈'];
 const WATER_LIT = [1, 2, 3, 3];
+/** The ocean scrolls at half the page's speed, so it reads as a background layer. */
+const PARALLAX = 0.5;
 
 interface Bubble { x: number; y: number; vy: number; phase: number; size: number }
 interface Particle { x: number; y: number; vx: number; vy: number; born: number; life: number; char: string; color: number }
@@ -34,19 +36,22 @@ export function Ocean() {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     const reduce = prefersReducedMotion();
+    /** Water lives on a fixed character grid; everything that moves uses the smooth layer. */
     const grid = new Grid();
+    const layer = new Layer();
     let glyphs = new Glyphs(FONT, 6, LINE, 1);
     let dpr = 1;
     let raf = 0;
     let lastFrame = 0;
-    let lastScroll = window.scrollY;
+    /** The cursor in screen coordinates; world.pointer holds it in ocean coordinates. */
+    const screenPointer = { x: -9999, y: -9999 };
 
     const bubbles: Bubble[] = [];
     const particles: Particle[] = [];
     const ripples: Ripple[] = [];
     const jellies: Jelly[] = [];
-    let octopus: Octopus | null = null;
-    let turtle: Turtle | null = null;
+    const octopuses: Octopus[] = [];
+    const turtles: Turtle[] = [];
     const crab = { x: 120, dir: 1, blinkUntil: 0 };
 
     /** Soft glow sprite, drawn under the grid (cheaper than shadowBlur). */
@@ -67,15 +72,15 @@ export function Ocean() {
     })();
     const glows: [number, number, number, number][] = [];
 
-    const spawnBubble = (x = rand(0, world.w), y = world.h + rand(0, 80), size = Math.random()) => {
-      if (bubbles.length < 80) bubbles.push({ x, y, vy: -rand(0.3, 0.8) * (0.6 + size * 0.6), phase: rand(0, 10), size });
+    const spawnBubble = (x = rand(0, world.w), y = world.oy + world.h + rand(0, 80), size = Math.random()) => {
+      if (bubbles.length < 50) bubbles.push({ x, y, vy: -rand(0.3, 0.8) * (0.6 + size * 0.6), phase: rand(0, 10), size });
     };
 
     const world: World = {
-      w: 0, h: 0, t: 0, now: 0, k: 1, dim: 0.85, grid,
+      w: 0, h: 0, H: 0, oy: 0, t: 0, now: 0, k: 1, dim: 0.85, grid: layer,
       pointer: { x: -9999, y: -9999, vx: 0, vy: 0, lastMove: -9999 },
       food: [], fish: [], shark: null,
-      glow: (x, y, size, alpha) => { glows.push([x, y, size, alpha]); },
+      glow: (x, y, size, alpha) => { glows.push([x, y - world.oy, size, alpha]); },
       bubble: (x, y, size = Math.random()) => spawnBubble(x, y, size),
       burst: (x, y, count, chars, color, speed, life) => {
         const now = performance.now();
@@ -88,11 +93,13 @@ export function Ocean() {
     };
 
     const small = () => world.w < 700;
+    const oceanHeight = () => Math.max(world.h, (document.documentElement.scrollHeight - world.h) * PARALLAX + world.h);
 
     const measure = () => {
       ctx.font = FONT;
       const cw = Math.max(5, ctx.measureText('M').width);
       grid.resize(world.w, world.h, cw, LINE);
+      layer.resize(world.w, world.h, cw, LINE);
       glyphs = new Glyphs(FONT, cw, LINE, dpr);
     };
 
@@ -109,32 +116,90 @@ export function Ocean() {
       measure();
     };
 
-    const populate = () => {
-      const { w, h } = world;
+    /**
+     * Spreads animals through the whole page-tall ocean, each with its own home depth,
+     * plus a random welcome group in the screen the visitor lands on.
+     * With `keepWelcome`, animals in the current screen stay put and only the rest are re-spread
+     * (used when the page grows as images load).
+     */
+    const populate = (keepWelcome = false) => {
+      const { w, h, oy } = world;
+      const H = (world.H = oceanHeight());
+      const screens = H / h;
       const now = performance.now();
-      world.fish.length = 0;
-      world.shark = null;
-      turtle = null;
-      const school = (species: 'minnow' | 'tang' | 'snapper', count: number, spread: number) => {
-        const cx = rand(w * 0.15, w * 0.85), cy = rand(h * 0.25, h * 0.8), angle = rand(0, Math.PI * 2);
-        for (let i = 0; i < count; i++) world.fish.push(new Fish(species, cx + rand(-spread, spread), cy + rand(-spread, spread) * 0.6, angle + rand(-0.4, 0.4)));
+      const per = (perScreen: number) => Math.max(1, Math.round(screens * perScreen));
+      // Depths outside the landing screen, so it doesn't get crowded on top of the welcome group.
+      const depth = (i: number, n: number) => {
+        let y = ((i + rand(0.2, 0.8)) / n) * Math.max(100, H - 200 - h) + 100;
+        if (y > oy - 80) y += h + 160;
+        return Math.min(H - 60, y);
       };
-      if (small()) {
-        school('minnow', 7, 60);
-        school('tang', 2, 80);
-        school('snapper', 1, 0);
+      const inView = (y: number) => y > oy - 100 && y < oy + h + 100;
+      const mobile = small();
+
+      if (keepWelcome) {
+        world.fish = world.fish.filter(f => inView(f.home));
+        jellies.splice(0, jellies.length, ...jellies.filter(j => inView(j.y)));
+        octopuses.splice(0, octopuses.length, ...octopuses.filter(o => inView(o.home)));
+        turtles.splice(0, turtles.length, ...turtles.filter(t => inView(t.home)));
       } else {
-        school('minnow', 9, 90);
-        school('minnow', 8, 90);
-        school('tang', 5, 140);
-        school('snapper', 2, 220);
-        world.shark = new Shark(rand(-100, w + 100), rand(h * 0.3, h * 0.7), now);
-        turtle = new Turtle(rand(w * 0.2, w * 0.8), rand(h * 0.3, h * 0.7));
+        world.fish = [];
+        jellies.length = 0;
+        octopuses.length = 0;
+        turtles.length = 0;
+        world.shark = null;
       }
-      jellies.length = 0;
-      for (let i = 0; i < (small() ? 1 : 2); i++) jellies.push(new Jelly(rand(60, w - 60), rand(h * 0.2, h)));
-      octopus = new Octopus(rand(w * 0.3, w * 0.8), rand(h * 0.5, h * 0.85));
-      for (let i = 0; i < 24; i++) spawnBubble(rand(0, w), rand(0, h));
+
+      const school = (species: 'minnow' | 'tang' | 'snapper', y: number, count: number, spread: number, cx = rand(w * 0.15, w * 0.85), angle = rand(0, Math.PI * 2)) => {
+        for (let i = 0; i < count; i++) {
+          const fy = y + rand(-spread, spread) * 0.6;
+          world.fish.push(new Fish(species, cx + rand(-spread, spread) * (cx < 0 || cx > w ? 0.6 : 1), fy, angle + rand(-0.4, 0.4), y));
+        }
+      };
+
+      /* Welcome group: always something to see on arrival, different every visit. */
+      if (!keepWelcome) {
+        const at = (a: number, b: number) => oy + h * rand(a, b);
+        const fromLeft = Math.random() < 0.5;
+        // A minnow school swims in from one side.
+        school('minnow', at(0.3, 0.75), mobile ? 6 : 9, 70, fromLeft ? -90 : w + 90, fromLeft ? rand(-0.3, 0.3) : Math.PI + rand(-0.3, 0.3));
+        jellies.push(new Jelly(rand(w * 0.1, w * 0.9), at(0.25, 0.85)));
+        if (Math.random() < 0.5) school('tang', at(0.2, 0.7), mobile ? 2 : 3, 110);
+        else school('snapper', at(0.3, 0.8), Math.random() < 0.5 ? 1 : 2, 90, fromLeft ? w + 100 : -100, fromLeft ? Math.PI : 0);
+        if (!mobile) {
+          const guest = ['turtle', 'octopus', 'shark'][Math.floor(Math.random() * 3)];
+          if (guest === 'turtle') turtles.push(new Turtle(fromLeft ? w + 60 : -60, at(0.3, 0.7)));
+          else if (guest === 'octopus') octopuses.push(new Octopus(rand(w * 0.3, w * 0.85), at(0.55, 0.9)));
+          else {
+            // The shark cruises across the screen, then heads off to its own depth.
+            const dir = Math.random() < 0.5 ? 1 : -1;
+            const shark = new Shark(dir > 0 ? -320 : w + 320, at(0.35, 0.7), now);
+            shark.vx = dir * 1.1;
+            shark.vy = 0;
+            shark.wander = dir > 0 ? 0 : Math.PI;
+            shark.home = rand(H * 0.3, H * 0.75);
+            world.shark = shark;
+          }
+        }
+      }
+
+      /* Everyone else, spread through the rest of the page. */
+      const minnowSchools = per(mobile ? 0.3 : 0.45);
+      for (let i = 0; i < minnowSchools; i++) school('minnow', depth(i, minnowSchools), mobile ? 5 : 7, 80);
+      const tangs = per(mobile ? 0.15 : 0.25);
+      for (let i = 0; i < tangs; i++) school('tang', depth(i, tangs), mobile ? 2 : 3, 120);
+      const snappers = per(mobile ? 0.15 : 0.3);
+      for (let i = 0; i < snappers; i++) school('snapper', depth(i, snappers), 1, 0);
+      const jellyCount = per(mobile ? 0.25 : 0.35);
+      for (let i = 0; i < jellyCount; i++) jellies.push(new Jelly(rand(60, w - 60), depth(i, jellyCount)));
+      const octoCount = per(0.12);
+      for (let i = 0; i < octoCount; i++) octopuses.push(new Octopus(rand(w * 0.2, w * 0.8), depth(i, octoCount)));
+      if (!mobile) {
+        const turtleCount = per(0.12);
+        for (let i = 0; i < turtleCount; i++) turtles.push(new Turtle(rand(w * 0.2, w * 0.8), depth(i, turtleCount)));
+        world.shark ??= new Shark(rand(0, w), depth(0, 1), now);
+      }
+      if (!keepWelcome) for (let i = 0; i < 24; i++) spawnBubble(rand(0, w), rand(0, h) + oy);
     };
 
     /* ── Water ──────────────────────────────────────────────── */
@@ -173,17 +238,18 @@ export function Ocean() {
           if (v < 1.25) continue;
           const level = Math.min(3, Math.floor((v - 1.25) * 2.2));
           glow = Math.min(1, glow);
-          grid.put(c, r, WATER[level], glow > 0.08 ? WATER_LIT[Math.min(3, Math.floor(glow * 3.5))] : C.WATER, (0.06 + level * 0.04) * light + glow * 0.35, 0);
+          grid.put(c, r, WATER[level], glow > 0.08 ? WATER_LIT[Math.min(3, Math.floor(glow * 3.5))] : C.WATER, (0.05 + level * 0.035) * light + glow * 0.28, 0);
         }
       }
     };
 
     /* ── Seabed ─────────────────────────────────────────────── */
 
-    const drawSeabed = (t: number, now: number, k: number, rise: number) => {
-      if (rise <= 0) return;
-      const { w, h, pointer } = world;
-      const floor = h - rise * LINE * 4;
+    const drawSeabed = (t: number, now: number, k: number) => {
+      const { w, H, oy, h, pointer } = world;
+      const floor = H - LINE * 2;
+      if (floor < oy - 200 || floor > oy + h + 200) return;
+      const rise = 1;
       // Kelp: sways with the current and bends away from the cursor.
       const stalks = Math.floor(w / 70);
       for (let s = 0; s < stalks; s++) {
@@ -198,17 +264,17 @@ export function Ocean() {
           const dx = x - pointer.x, dy = y - pointer.y;
           const d = Math.hypot(dx, dy);
           if (d < 90) x += Math.sign(dx || 1) * (90 - d) * 0.45 * f;
-          grid.line(lx, ly, x, y, C.WEED, 0.45 * rise * (1 - f * 0.4), 0.45 * rise * (1 - f * 0.5), 2);
-          if (i % 2 === 0 && i < segs) grid.putPx(x + (i % 4 ? 5 : -5), y, i % 4 ? ')' : '(', C.WEED, 0.3 * rise, 2);
+          layer.line(lx, ly, x, y, C.WEED, 0.45 * rise * (1 - f * 0.4), 0.45 * rise * (1 - f * 0.5), 2);
+          if (i % 2 === 0 && i < segs) layer.putPx(x + (i % 4 ? 5 : -5), y, i % 4 ? ')' : '(', C.WEED, 0.3 * rise, 2);
           lx = x; ly = y;
         }
       }
       // Sand
-      for (let x = 0; x < w; x += grid.cw) {
-        const i = Math.floor(x / grid.cw);
-        grid.putPx(x, floor + 2, (i * 7) % 5 === 0 ? '_' : (i * 3) % 7 === 0 ? ',' : '.', C.SAND, 0.22 * rise, 2);
+      for (let x = 0; x < w; x += layer.cw) {
+        const i = Math.floor(x / layer.cw);
+        layer.putPx(x, floor + 2, (i * 7) % 5 === 0 ? '_' : (i * 3) % 7 === 0 ? ',' : '.', C.SAND, 0.22 * rise, 2);
       }
-      grid.putPx(w * 0.72, floor - 4, ['*', '✶', '✳', '✶'][Math.floor(t * 1.5) % 4], C.STAR, 0.55 * rise, 2);
+      layer.putPx(w * 0.72, floor - 4, ['*', '✶', '✳', '✶'][Math.floor(t * 1.5) % 4], C.STAR, 0.55 * rise, 2);
 
       // Crab: scuttles in bursts, snaps its claws, blinks, and hurries away from the cursor.
       const scared = Math.abs(pointer.x - crab.x) < 90 && Math.abs(pointer.y - floor) < 80;
@@ -222,7 +288,7 @@ export function Ocean() {
       const snap = Math.sin(t * 7) > 0.6;
       const eyes = now < crab.blinkUntil ? '-,,,-' : '°,,,°';
       const hop = scuttle > 0.1 ? Math.abs(Math.sin(t * 12)) * -3 : 0;
-      grid.text(crab.x, floor - LINE + hop, `${snap ? '(\\/)' : '(\\_/)'}(${eyes})${snap ? '(\\/)' : '(\\_/)'}`, C.CRAB, 0.7 * rise, 6);
+      layer.text(crab.x, floor - LINE + hop, `${snap ? '(\\/)' : '(\\_/)'}(${eyes})${snap ? '(\\/)' : '(\\_/)'}`, C.CRAB, 0.7 * rise, 6);
     };
 
     /* ── Frame ──────────────────────────────────────────────── */
@@ -238,38 +304,31 @@ export function Ocean() {
     const render = (now: number, dt: number) => {
       const t = now / 1000;
       const scroll = window.scrollY;
-      const parallax = -(scroll - lastScroll) * 0.3;
-      lastScroll = scroll;
       const k = dt / 16;
+      world.H = oceanHeight();
+      world.oy = scroll * PARALLAX;
+      grid.oy = world.oy;
+      layer.oy = world.oy;
       Object.assign(world, { t, now, k });
+      world.pointer.x = screenPointer.x;
+      world.pointer.y = screenPointer.y + world.oy;
       world.pointer.vx *= 0.85;
       world.pointer.vy *= 0.85;
 
-      // Diving: everything drifts up as you scroll down.
-      if (parallax) {
-        for (const f of world.fish) f.shift(parallax);
-        world.shark?.shift(parallax);
-        jellies.forEach(j => j.shift(parallax));
-        octopus?.shift(parallax);
-        turtle?.shift(parallax);
-        for (const f of world.food) f.y += parallax;
-        for (const b of bubbles) b.y += parallax * 0.8;
-        for (const p of particles) p.y += parallax;
-      }
-
       grid.clear();
+      layer.clear();
       glows.length = 0;
       drawWater(now, scroll);
 
       for (const f of world.fish) f.update(world);
       world.shark?.update(world);
       jellies.forEach(j => j.update(world));
-      octopus?.update(world);
-      turtle?.update(world);
+      octopuses.forEach(o => o.update(world));
+      turtles.forEach(tu => tu.update(world));
 
       jellies.forEach(j => j.draw(world));
-      octopus?.draw(world);
-      turtle?.draw(world);
+      octopuses.forEach(o => o.draw(world));
+      turtles.forEach(tu => tu.draw(world));
       for (const f of world.fish) f.draw(world);
       world.shark?.draw(world);
 
@@ -278,8 +337,8 @@ export function Ocean() {
         const f = world.food[i];
         f.y += f.vy * k;
         f.x += Math.sin(t * 2 + f.phase) * 0.3 * k;
-        if (f.eaten || f.y > world.h + 10) { world.food.splice(i, 1); continue; }
-        grid.putPx(f.x, f.y, '*', C.FOOD, 0.85, 8);
+        if (f.eaten || f.y > world.H || f.y > world.oy + world.h + 200) { world.food.splice(i, 1); continue; }
+        layer.putPx(f.x, f.y, '*', C.FOOD, 0.6, 8);
       }
 
       for (let i = particles.length - 1; i >= 0; i--) {
@@ -288,7 +347,7 @@ export function Ocean() {
         if (age >= 1) { particles.splice(i, 1); continue; }
         p.x += p.vx * k; p.y += p.vy * k;
         p.vx *= 0.96 ** k; p.vy = p.vy * 0.96 ** k + 0.008 * k;
-        grid.putPx(p.x, p.y, p.char, p.color, 0.6 * (1 - age) * world.dim, 7);
+        layer.putPx(p.x, p.y, p.char, p.color, 0.45 * (1 - age) * world.dim, 7);
       }
 
       for (let i = bubbles.length - 1; i >= 0; i--) {
@@ -296,18 +355,19 @@ export function Ocean() {
         b.y += b.vy * k;
         b.x += Math.sin(t * 2.4 + b.phase) * 0.35 * k;
         b.size = Math.min(1, b.size + 0.0006 * k);
-        if ((b.y < 20 && b.size > 0.5 && Math.random() < 0.05) || b.y < -20) {
-          if (b.y > -20) world.burst(b.x, b.y, 3, ".·'", C.BUBBLE, 0.8, 450);
+        // Bubbles pop at the surface; others just drift out of view.
+        if ((b.y < 20 && b.size > 0.5 && Math.random() < 0.05) || b.y < world.oy - 30) {
+          if (b.y < 20 && b.y > -20) world.burst(b.x, b.y, 3, ".·'", C.BUBBLE, 0.8, 450);
           bubbles.splice(i, 1);
           continue;
         }
-        grid.putPx(b.x, b.y, b.size > 0.7 ? 'o' : b.size > 0.35 ? '°' : '.', C.BUBBLE, 0.25 + b.size * 0.3, 7);
+        layer.putPx(b.x, b.y, b.size > 0.7 ? 'o' : b.size > 0.35 ? '°' : '.', C.BUBBLE, 0.16 + b.size * 0.2, 7);
       }
-      if (Math.random() < 0.2) spawnBubble();
+      if (Math.random() < 0.07) spawnBubble();
 
       const max = document.documentElement.scrollHeight - world.h;
       const progress = max > 0 ? scroll / max : 0;
-      drawSeabed(t, now, k, Math.min(1, Math.max(0, (progress - 0.86) / 0.14)));
+      drawSeabed(t, now, k);
 
       ctx.globalAlpha = 1;
       ctx.clearRect(0, 0, world.w, world.h);
@@ -316,6 +376,7 @@ export function Ocean() {
         ctx.drawImage(glowSprite, x - size / 2, y - size / 2, size, size);
       }
       glyphs.draw(ctx, grid);
+      layer.draw(ctx, glyphs);
 
       const depth = String(Math.round(progress * 180)).padStart(3, '0');
       if (depthRef.current && depthRef.current.textContent !== depth) depthRef.current.textContent = depth;
@@ -325,24 +386,26 @@ export function Ocean() {
 
     const onMove = (event: PointerEvent) => {
       const p = world.pointer;
-      if (p.x > -1000) { p.vx = event.clientX - p.x; p.vy = event.clientY - p.y; }
-      p.x = event.clientX;
-      p.y = event.clientY;
+      if (screenPointer.x > -1000) { p.vx = event.clientX - screenPointer.x; p.vy = event.clientY - screenPointer.y; }
+      screenPointer.x = event.clientX;
+      screenPointer.y = event.clientY;
       p.lastMove = performance.now();
     };
-    const onLeave = () => { world.pointer.x = -9999; world.pointer.y = -9999; };
+    const onLeave = () => { screenPointer.x = -9999; screenPointer.y = -9999; };
     const onDown = (event: PointerEvent) => {
       if ((event.target as Element).closest('a, button, input, label, dialog, .fx-game')) return;
       const { clientX: x, clientY: y } = event;
       const now = performance.now();
       ripples.push({ x, y, born: now });
       if (ripples.length > 4) ripples.shift();
-      for (let i = 0; i < 6; i++) spawnBubble(x + rand(-12, 12), y + rand(-6, 8), rand(0, 0.7));
+      // Bubbles, food and the shark live in ocean coordinates.
+      const oy = y + world.oy;
+      for (let i = 0; i < 6; i++) spawnBubble(x + rand(-12, 12), oy + rand(-6, 8), rand(0, 0.7));
       // Feeding time: a few pellets sink from the click.
-      const food: Food[] = Array.from({ length: Math.floor(rand(3, 6)) }, () => ({ x: x + rand(-18, 18), y: y + rand(-8, 8), vy: rand(0.25, 0.45), phase: rand(0, 10), eaten: false }));
+      const food: Food[] = Array.from({ length: Math.floor(rand(3, 6)) }, () => ({ x: x + rand(-18, 18), y: oy + rand(-8, 8), vy: rand(0.2, 0.35), phase: rand(0, 10), eaten: false }));
       world.food.push(...food);
       if (world.food.length > 30) world.food.splice(0, world.food.length - 30);
-      world.shark?.scare(x, y, now);
+      world.shark?.scare(x, oy, now);
     };
     const onVisibility = () => {
       cancelAnimationFrame(raf);
@@ -351,9 +414,13 @@ export function Ocean() {
     const onScrollStatic = () => render(performance.now(), 16);
 
     resize();
+    world.oy = window.scrollY * PARALLAX;
+    grid.oy = layer.oy = world.oy;
     populate();
     void document.fonts?.ready.then(measure);
     const onResize = () => { const wasSmall = small(); resize(); if (wasSmall !== small()) populate(); };
+    // The page grows as images load; once it settles, spread animals over the full ocean.
+    const settle = window.setTimeout(() => { if (Math.abs(oceanHeight() - world.H) > world.h * 0.5) populate(true); }, 2500);
     window.addEventListener('resize', onResize);
     if (reduce) {
       render(performance.now(), 16);
@@ -367,6 +434,7 @@ export function Ocean() {
     }
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(settle);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onScrollStatic);
       window.removeEventListener('pointermove', onMove);

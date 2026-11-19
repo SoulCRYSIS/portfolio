@@ -3,29 +3,30 @@
    are rasterised into, then drawn with cached glyph images.
    ─────────────────────────────────────────────────────────────── */
 
+// Muted on purpose: the ocean is a background, so nothing should compete with the content.
 export const COLORS = [
-  '150, 220, 200', // 0 water
-  '170, 232, 170', // 1 water lit
-  '186, 240, 140', // 2
-  '200, 245, 110', // 3 water fully lit
-  '200, 245, 106', // 4 minnow
-  '120, 190, 255', // 5 tang
-  '255, 165, 110', // 6 snapper
-  '150, 178, 200', // 7 shark
-  '215, 185, 255', // 8 jelly bell
-  '180, 150, 245', // 9 jelly tentacles
-  '255, 140, 130', // 10 octopus
-  '255, 210, 90', // 11 octopus flash
-  '150, 215, 150', // 12 turtle skin
-  '205, 185, 110', // 13 turtle shell
-  '240, 248, 244', // 14 eyes
-  '255, 200, 110', // 15 food
-  '200, 240, 255', // 16 bubbles
-  '150, 110, 210', // 17 ink
-  '110, 231, 183', // 18 seaweed
-  '255, 210, 150', // 19 sand
-  '255, 140, 120', // 20 crab
-  '255, 170, 110', // 21 starfish
+  '150, 210, 195', // 0 water
+  '160, 215, 180', // 1 water lit
+  '172, 220, 165', // 2
+  '185, 225, 150', // 3 water fully lit
+  '165, 200, 140', // 4 minnow
+  '130, 168, 200', // 5 tang
+  '205, 160, 135', // 6 snapper
+  '135, 155, 170', // 7 shark
+  '180, 165, 215', // 8 jelly bell
+  '155, 142, 198', // 9 jelly tentacles
+  '200, 145, 140', // 10 octopus
+  '220, 195, 125', // 11 octopus flash
+  '140, 182, 150', // 12 turtle skin
+  '178, 165, 125', // 13 turtle shell
+  '205, 220, 212', // 14 eyes
+  '220, 190, 135', // 15 food
+  '165, 205, 215', // 16 bubbles
+  '128, 110, 165', // 17 ink
+  '110, 185, 158', // 18 seaweed
+  '205, 185, 150', // 19 sand
+  '205, 145, 130', // 20 crab
+  '205, 162, 125', // 21 starfish
 ];
 
 export const C = {
@@ -62,6 +63,8 @@ export function dirChar(dx: number, dy: number) {
 }
 
 export class Grid {
+  /** Vertical offset of the viewport inside the ocean: creature methods take ocean coordinates. */
+  oy = 0;
   cols = 0;
   rows = 0;
   cw = 6;
@@ -98,7 +101,7 @@ export class Grid {
   }
 
   putPx(x: number, y: number, char: string, color: number, alpha: number, z: number) {
-    this.put(Math.floor(x / this.cw), Math.floor(y / this.ch), char, color, alpha, z);
+    this.put(Math.floor(x / this.cw), Math.floor((y - this.oy) / this.ch), char, color, alpha, z);
   }
 
   /** A stroke between two points, fading from a0 to a1. */
@@ -115,7 +118,7 @@ export class Grid {
 
   text(x: number, y: number, str: string, color: number, alpha: number, z: number) {
     const col = Math.floor(x / this.cw);
-    const row = Math.floor(y / this.ch);
+    const row = Math.floor((y - this.oy) / this.ch);
     for (let i = 0; i < str.length; i++) if (str[i] !== ' ') this.put(col + i, row, str[i], color, alpha, z);
   }
 
@@ -135,15 +138,15 @@ export class Grid {
     // Pad by one cell so edges at the bounding box are detected.
     const c0 = Math.floor(x0 / this.cw) - 1;
     const c1 = Math.floor(x1 / this.cw) + 1;
-    const r0 = Math.floor(y0 / this.ch) - 1;
-    const r1 = Math.floor(y1 / this.ch) + 1;
+    const r0 = Math.floor((y0 - this.oy) / this.ch) - 1;
+    const r1 = Math.floor((y1 - this.oy) / this.ch) + 1;
     if (c1 < 0 || r1 < 0 || c0 >= this.cols || r0 >= this.rows) return;
     const w = c1 - c0 + 1;
     const h = r1 - r0 + 1;
     if (this.mask.length < w * h) this.mask = new Float32Array(w * h * 2);
     const mask = this.mask;
     for (let r = 0; r < h; r++) {
-      const py = (r0 + r + 0.5) * this.ch;
+      const py = (r0 + r + 0.5) * this.ch + this.oy;
       for (let c = 0; c < w; c++) mask[r * w + c] = sample((c0 + c + 0.5) * this.cw, py);
     }
     const out = (c: number, r: number) => (c < 0 || r < 0 || c >= w || r >= h || mask[r * w + c] < 0 ? 1 : 0);
@@ -166,7 +169,7 @@ export class Grid {
           else char = nx * ny > 0 ? '/' : '\\';
           this.put(col, row, char, color, alpha * (0.75 + 0.25 * s), z);
         } else {
-          const px = (col + 0.5) * this.cw, py = (row + 0.5) * this.ch;
+          const px = (col + 0.5) * this.cw, py = (row + 0.5) * this.ch + this.oy;
           const char = pattern?.(px, py, s) ?? INTERIOR[Math.min(INTERIOR.length - 1, Math.floor(s * INTERIOR.length))];
           this.put(col, row, char, color, alpha * (0.3 + 0.55 * s), z);
         }
@@ -175,11 +178,126 @@ export class Grid {
   }
 }
 
+/**
+ * Free-positioned glyphs for creatures. Unlike Grid, nothing snaps to fixed screen cells:
+ * shapes are sampled on a lattice anchored to the creature itself and strokes are placed
+ * at exact positions, so animals glide smoothly instead of jumping a cell at a time.
+ * Same drawing API as Grid; glyphs are drawn in z order.
+ */
+export class Layer {
+  oy = 0;
+  cw = 6;
+  ch = 11;
+  width = 0;
+  height = 0;
+  private buckets = Array.from({ length: 10 }, () => ({ n: 0, x: [] as number[], y: [] as number[], c: [] as string[], col: [] as number[], a: [] as number[] }));
+  private mask = new Float32Array(0);
+
+  resize(width: number, height: number, cw: number, ch: number) {
+    this.width = width;
+    this.height = height;
+    this.cw = cw;
+    this.ch = ch;
+  }
+
+  clear() { for (const b of this.buckets) b.n = 0; }
+
+  /** Adds a glyph centred on (x, y) in ocean coordinates. */
+  putPx(x: number, y: number, char: string, color: number, alpha: number, z: number) {
+    const sy = y - this.oy;
+    if (alpha < 0.015 || x < -20 || x > this.width + 20 || sy < -20 || sy > this.height + 20) return;
+    const b = this.buckets[Math.max(0, Math.min(9, z))];
+    const i = b.n++;
+    b.x[i] = x; b.y[i] = sy; b.c[i] = char; b.col[i] = color; b.a[i] = alpha;
+  }
+
+  /** A stroke between two points, with glyphs spaced one cell apart along it. */
+  line(x0: number, y0: number, x1: number, y1: number, color: number, a0: number, a1: number, z: number, char?: string) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.5) { this.putPx(x0, y0, char ?? '.', color, a0, z); return; }
+    const c = char ?? dirChar(dx, dy);
+    const step = Math.min(this.cw / Math.max(0.001, Math.abs(dx) / len), this.ch / Math.max(0.001, Math.abs(dy) / len)) * 0.9;
+    const n = Math.max(1, Math.round(len / step));
+    for (let s = 0; s <= n; s++) {
+      const t = s / n;
+      this.putPx(x0 + dx * t, y0 + dy * t, c, color, a0 + (a1 - a0) * t, z);
+    }
+  }
+
+  text(x: number, y: number, str: string, color: number, alpha: number, z: number) {
+    for (let i = 0; i < str.length; i++) if (str[i] !== ' ') this.putPx(x + i * this.cw, y, str[i], color, alpha, z);
+  }
+
+  /** Same contract as Grid.fill; the sampling lattice is anchored at (ax, ay) so it moves with the creature. */
+  fill(
+    x0: number, y0: number, x1: number, y1: number,
+    sample: (px: number, py: number) => number,
+    color: number, alpha: number, z: number,
+    pattern?: (px: number, py: number, s: number) => string | null,
+    ax = x0, ay = y0,
+  ) {
+    const { cw, ch } = this;
+    if (x1 < -40 || x0 > this.width + 40 || y1 - this.oy < -40 || y0 - this.oy > this.height + 40) return;
+    const c0 = Math.floor((x0 - ax) / cw) - 1;
+    const c1 = Math.ceil((x1 - ax) / cw) + 1;
+    const r0 = Math.floor((y0 - ay) / ch) - 1;
+    const r1 = Math.ceil((y1 - ay) / ch) + 1;
+    const w = c1 - c0 + 1;
+    const h = r1 - r0 + 1;
+    if (this.mask.length < w * h) this.mask = new Float32Array(w * h * 2);
+    const mask = this.mask;
+    for (let r = 0; r < h; r++) {
+      const py = ay + (r0 + r) * ch;
+      for (let c = 0; c < w; c++) mask[r * w + c] = sample(ax + (c0 + c) * cw, py);
+    }
+    const out = (c: number, r: number) => (c < 0 || r < 0 || c >= w || r >= h || mask[r * w + c] < 0 ? 1 : 0);
+    for (let r = 1; r < h - 1; r++) {
+      for (let c = 1; c < w - 1; c++) {
+        const s = mask[r * w + c];
+        if (s < 0) continue;
+        const px = ax + (c0 + c) * cw;
+        const py = ay + (r0 + r) * ch;
+        const n = out(c, r - 1), so = out(c, r + 1), e = out(c + 1, r), wv = out(c - 1, r);
+        if (n + so + e + wv > 0) {
+          const ne = out(c + 1, r - 1), nw = out(c - 1, r - 1), se = out(c + 1, r + 1), sw = out(c - 1, r + 1);
+          const nx = e - wv + 0.6 * (ne + se - nw - sw);
+          const ny = so - n + 0.6 * (se + sw - ne - nw);
+          let char: string;
+          if (Math.abs(nx) < 0.3 && Math.abs(ny) < 0.3) char = 'o';
+          else if (Math.abs(ny) > Math.abs(nx) * 2.2) char = ny < 0 ? '_' : '-';
+          else if (Math.abs(nx) > Math.abs(ny) * 2.2) char = '|';
+          else char = nx * ny > 0 ? '/' : '\\';
+          this.putPx(px, py, char, color, alpha * (0.75 + 0.25 * s), z);
+        } else {
+          const char = pattern?.(px, py, s) ?? INTERIOR[Math.min(INTERIOR.length - 1, Math.floor(s * INTERIOR.length))];
+          this.putPx(px, py, char, color, alpha * (0.3 + 0.55 * s), z);
+        }
+      }
+    }
+  }
+
+  draw(ctx: CanvasRenderingContext2D, glyphs: Glyphs) {
+    const { w, h } = glyphs.size;
+    for (const b of this.buckets) {
+      for (let i = 0; i < b.n; i++) {
+        ctx.globalAlpha = Math.min(1, b.a[i]);
+        ctx.drawImage(glyphs.get(b.col[i], b.c[i]), b.x[i] - w / 2, b.y[i] - h / 2, w, h);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
 /** Each (colour, character) pair is drawn once into a small canvas, then copied with drawImage. */
 export class Glyphs {
   private cache: Map<string, HTMLCanvasElement>[] = COLORS.map(() => new Map());
   private pad = 2;
   constructor(private font: string, private cw: number, private ch: number, private dpr: number) {}
+
+  /** Size of one glyph image in CSS pixels (a cell plus padding). */
+  get size() { return { w: this.cw + this.pad * 2, h: this.ch + this.pad * 2 }; }
 
   get(color: number, char: string) {
     const map = this.cache[color];
