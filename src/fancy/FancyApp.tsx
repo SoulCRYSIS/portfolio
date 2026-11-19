@@ -9,6 +9,7 @@ import { useMode } from '../mode';
 import { CommandPalette } from './CommandPalette';
 import type { Command } from './CommandPalette';
 import { Hero } from './Hero';
+import { Ocean } from './Ocean';
 import { finePointer, prefersReducedMotion } from './hooks';
 import { CaseStudy, Contact, Footer, Marquee, Skills, Timeline } from './Sections';
 import { TypeGame } from './TypeGame';
@@ -170,6 +171,7 @@ export function FancyApp() {
     <div className="fx" ref={rootRef}>
       <a className="fx-skip" href="#fx-main">Skip to content</a>
       <div className="fx-progress" ref={progressRef} aria-hidden="true" />
+      <Ocean />
       <div className="fx-grain" aria-hidden="true" />
       <CursorGlow />
 

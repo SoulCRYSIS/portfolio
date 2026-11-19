@@ -16,7 +16,7 @@ Install dependencies with `npm install`, then run `npm run dev`. Open the URL sh
 
 - The site has two versions, chosen with the Simple / Fancy switch at the top right. Simple is the default; the choice is remembered in `localStorage`, and `?mode=fancy` or `?mode=simple` in the URL overrides it.
 - `src/components/` contains the simple version's sections, the project detail dialog and the mode switch.
-- `src/fancy/` contains the fancy version (dot-field hero, case study, timeline, project index, typing game, ⌘K command menu). It's loaded only when someone switches to it.
+- `src/fancy/` contains the fancy version (ASCII ocean background in `Ocean.tsx`, dot-field hero, case study, timeline, project index, typing game, ⌘K command menu). It's loaded only when someone switches to it.
 - `src/data/` contains the content shared by both versions: `projects.ts` (projects), `content.ts` (experience, skills, SIMS screens, stats) and `profile.ts` (links).
 - `src/styles.css` contains the simple version's styling; `src/fancy/fancy.css` styles the fancy version.
 - `public/assets/` contains images and video; `public/resume.pdf` is the downloadable resume.
