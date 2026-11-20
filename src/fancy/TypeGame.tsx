@@ -114,7 +114,7 @@ export function TypeGame() {
   return (
     <section id="play" className="fx-section fx-play" aria-labelledby="fx-play-title">
       <div className="fx-wrap">
-        <SectionHeading index="04" kicker="Take a break" title={<span id="fx-play-title">Type <span className="fx-serif">fast</span></span>}>
+        <SectionHeading index="05" kicker="Take a break" title={<span id="fx-play-title">Type <span className="fx-serif">fast</span></span>}>
           A tiny tribute to Caret Type. Type the falling words before they hit the floor.
         </SectionHeading>
         <div className={`fx-game ${phase === 'playing' ? 'is-playing' : ''}`} data-reveal onClick={() => phase === 'playing' && inputRef.current?.focus()}>

@@ -33,7 +33,7 @@ export function SimsCaseStudy() {
           <h2 id="sims-title">SIMS Property</h2>
           <p className="case-role">Freelance developer · 2023–2024, 2026</p>
           <p className="case-lead">I started the project from scratch by visiting the client on site. I observed how valuation and accounting staff handled jobs, turned those workflows into requirements, and used their feedback to refine the app.</p>
-          <p className="case-history">The original Flutter app was used by 500+ employees. I returned in 2026 to rebuild the workspace in React and TypeScript.</p>
+          <p className="case-history">The original Flutter app was used by 500+ employees. I returned in 2026 to migrate the workspace to React and TypeScript with Claude Code.</p>
           <ul className="case-details">
             {simsHighlights.map(item => <li key={item}>{item}</li>)}
           </ul>

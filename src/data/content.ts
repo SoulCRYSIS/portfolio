@@ -12,7 +12,7 @@ export const currentRole = {
   role: 'Frontend Engineer · Middle Level',
   logos: ['assets/ttb.png', 'assets/spark.png'],
   details: [
-    'Build Flutter and Kotlin features for an internal banking platform used by 10,000+ employees across branches and contribute to its React and Next.js admin panel.',
+    'Build Flutter and Kotlin features for an internal banking platform used by 10,000+ employees across branches and contribute to its React and Next.js admin panel, using AI coding tools in day-to-day development.',
     'Apply Clean Architecture and Bloc, structure unit tests, and build developer tooling with Jenkins, Sonar, Melos, and Context Builder.',
     'Contributed to Android plugin integrations for face recognition and passport scanning.',
   ],
@@ -33,14 +33,14 @@ export const earlierRoles: Role[] = [
     period: 'May 2024 – Aug 2025',
     role: 'Frontend Innovative Engineer',
     logo: 'assets/hugeman.png',
-    description: 'Built STA Friends, a Flutter app for farmers with 100,000+ downloads, and its back office. Led a Clean Architecture refactor and automated model, UI, and test work, helping the team work 2–3× faster.',
+    description: 'Built STA Friends, a Flutter app for farmers with 100,000+ downloads, and its back office. Led a Clean Architecture refactor and automated model, UI, and test work, helping the team work 2–3× faster. Wrote Cursor rules that turn Figma designs (via MCP) into Flutter UI following Clean Architecture.',
   },
   {
     company: 'SIMS Property',
     period: '2023–2024, 2026',
     role: 'Freelance Developer',
     logo: 'assets/sims-property.png',
-    description: 'Gathered requirements on site and used staff feedback to refine a Flutter valuation app used by 500+ employees. Returned in 2026 to rebuild it in React and TypeScript.',
+    description: 'Gathered requirements on site and used staff feedback to refine a Flutter valuation app used by 500+ employees. Returned in 2026 to migrate it to React and TypeScript with Claude Code.',
     caseStudy: '#sims-property',
   },
   {
@@ -64,6 +64,7 @@ export const skills: [area: string, technologies: string][] = [
   ['Mobile', 'Flutter, Dart, Kotlin, Bloc'],
   ['Backend & data', 'Node.js, Fastify, Firebase, Firestore Enterprise, Algolia, PostgreSQL'],
   ['Testing & delivery', 'Unit and integration tests, Jenkins, Sonar, Melos'],
+  ['AI-assisted development', 'Claude Code, Claude Design, Cursor, OpenAI Codex, MCP'],
 ];
 
 export const simsScreens = [
@@ -91,4 +92,45 @@ export const simsHighlights = [
   'Built a Node.js and Fastify API on Cloud Functions.',
   'Migrated legacy valuation data to Firestore Enterprise.',
   'Implemented Thai-language job search with Algolia, including partial name matching.',
+];
+
+export interface AiCase {
+  where: string;
+  title: string;
+  flow: string[];
+  description: string;
+  tools: string[];
+}
+
+export const aiIntro = 'I use AI agents in almost every project — not as autocomplete, but as part of how the work is set up, checked, and shipped.';
+
+export const aiCases: AiCase[] = [
+  {
+    where: 'Hugeman Consultants',
+    title: 'Figma to Flutter, on rails',
+    flow: ['Figma', 'MCP', 'Cursor rules', 'Flutter UI'],
+    description: 'Wrote Cursor rules that read designs from Figma through MCP and generate Flutter UI that already follows the team’s Clean Architecture, so generated screens fit the codebase instead of needing a rewrite.',
+    tools: ['Cursor', 'Figma MCP', 'Flutter'],
+  },
+  {
+    where: 'SIMS Property',
+    title: 'Flutter to React migration',
+    flow: ['Flutter app', 'Claude Code', 'React + TypeScript'],
+    description: 'Used Claude Code to migrate the Flutter workspace to React and TypeScript, alongside a new Node.js and Fastify API and a data migration to Firestore Enterprise.',
+    tools: ['Claude Code', 'React', 'TypeScript'],
+  },
+  {
+    where: 'TTB spark',
+    title: 'Everyday engineering',
+    flow: ['Task', 'AI pair', 'Review', 'Ship'],
+    description: 'Use AI coding tools day to day across Flutter, Kotlin, and React code on a banking platform, inside the team’s existing architecture and review process.',
+    tools: ['Claude Code', 'Cursor', 'OpenAI Codex'],
+  },
+];
+
+export const aiPrinciples = [
+  'Pick the right tool and model for the job — Claude Design for exploring UI, a stronger model for complex or architectural work, a faster one for routine edits — and keep context lean to manage token usage.',
+  'Give the agent context first — architecture, conventions, and examples — written down as rules it can follow.',
+  'Keep each change small enough to review, and read every diff before it lands.',
+  'Check the result with tests and the running app, not just a passing build.',
 ];

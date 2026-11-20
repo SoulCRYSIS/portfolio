@@ -109,7 +109,7 @@ export function Work({ onOpen }: { onOpen: (project: Project) => void }) {
   return (
     <section id="projects" className="fx-section fx-work" aria-labelledby="fx-work-title">
       <div className="fx-wrap" ref={spotlightRef}>
-        <SectionHeading index="03" kicker="Side projects" title={<span id="fx-work-title">Built after <span className="fx-serif">hours</span></span>}>
+        <SectionHeading index="04" kicker="Side projects" title={<span id="fx-work-title">Built after <span className="fx-serif">hours</span></span>}>
           Games, Factorio mods with 10k+ downloads, research notebooks and small tools.
         </SectionHeading>
 

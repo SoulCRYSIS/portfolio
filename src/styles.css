@@ -242,3 +242,14 @@ html[data-mode="fancy"] { background: #060d0a; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 }
+
+/* AI workflow */
+.ai-intro { max-width: 60ch; margin-bottom: 1.25rem; color: var(--muted); font-size: 1.05rem; }
+.ai-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; }
+.ai-grid h3 { margin-top: .5rem; font-size: 1.32rem; letter-spacing: -.035em; }
+.ai-flow { margin: .6rem 0 .8rem; color: var(--green); font-size: .86rem; font-weight: 700; }
+.ai-grid article > p:last-child { color: var(--muted); }
+.ai-principles-title { margin-top: 2rem; font-size: 1.1rem; }
+.ai-principles { display: grid; gap: .5rem; margin: .7rem 0 0; padding-left: 1.3rem; color: var(--muted); }
+.ai-principles li::marker { color: var(--green); font-weight: 700; }
+@media (max-width: 860px) { .ai-grid { grid-template-columns: minmax(0, 1fr); } }

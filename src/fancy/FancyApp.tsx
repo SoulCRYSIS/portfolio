@@ -11,7 +11,7 @@ import type { Command } from './CommandPalette';
 import { Hero } from './Hero';
 import { Ocean } from './Ocean';
 import { finePointer, prefersReducedMotion } from './hooks';
-import { CaseStudy, Contact, Footer, Marquee, Skills, Timeline } from './Sections';
+import { AiWorkflow, CaseStudy, Contact, Footer, Marquee, Skills, Timeline } from './Sections';
 import { TypeGame } from './TypeGame';
 import { Work } from './Work';
 import './fancy.css';
@@ -21,6 +21,7 @@ const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ita
 const NAV = [
   { href: '#work', label: 'Work' },
   { href: '#experience', label: 'Experience' },
+  { href: '#ai', label: 'AI' },
   { href: '#projects', label: 'Projects' },
   { href: '#play', label: 'Play' },
   { href: '#contact', label: 'Contact' },
@@ -197,6 +198,7 @@ export function FancyApp() {
         <Marquee />
         <CaseStudy />
         <Timeline />
+        <AiWorkflow />
         <Work onOpen={setSelected} />
         <TypeGame />
         <Skills />

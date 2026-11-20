@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom';
 import { Header } from './components/Header';
 import { Intro } from './components/Intro';
 import { Experience } from './components/Experience';
+import { AiWorkflow } from './components/AiWorkflow';
 import { SimsCaseStudy } from './components/SimsCaseStudy';
 import { Projects } from './components/Projects';
 import { About } from './components/About';
@@ -21,6 +22,7 @@ function SimpleSite() {
         <Intro />
         <SimsCaseStudy />
         <Experience />
+        <AiWorkflow />
         <Projects />
         <About />
         <Contact />

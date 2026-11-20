@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { currentRole, earlierRoles, simsHighlights, simsScreens, skills } from '../data/content';
+import { aiCases, aiIntro, aiPrinciples, currentRole, earlierRoles, simsHighlights, simsScreens, skills } from '../data/content';
 import { profile } from '../data/profile';
 import { finePointer, prefersReducedMotion, useMagnetic, useSpotlight } from './hooks';
 
@@ -16,7 +16,7 @@ export function SectionHeading({ index, kicker, title, children }: { index: stri
   );
 }
 
-const STACK = ['React', 'Next.js', 'TypeScript', 'Flutter', 'Dart', 'Kotlin', 'Bloc', 'Node.js', 'Fastify', 'Firebase', 'Firestore', 'Algolia', 'PostgreSQL', 'Jenkins', 'Sonar', 'Melos', 'Lua', 'Godot'];
+const STACK = ['React', 'Next.js', 'TypeScript', 'Flutter', 'Dart', 'Kotlin', 'Bloc', 'Node.js', 'Fastify', 'Firebase', 'Firestore', 'Algolia', 'PostgreSQL', 'Jenkins', 'Sonar', 'Melos', 'Claude Code', 'Cursor', 'MCP', 'Lua', 'Godot'];
 
 export function Marquee() {
   const row = STACK.map(item => <li key={item}>{item}<span aria-hidden="true">✦</span></li>);
@@ -66,7 +66,7 @@ export function CaseStudy() {
         <div className="fx-case-grid">
           <div className="fx-case-copy" data-reveal>
             <p className="fx-case-lead">I started from scratch by <mark>visiting the client on site</mark> — watching how valuation and accounting staff handled jobs, turning those workflows into requirements, and refining the app with their feedback.</p>
-            <p>The original Flutter app was used by 500+ employees. I returned in 2026 to rebuild the workspace in React and TypeScript.</p>
+            <p>The original Flutter app was used by 500+ employees. I returned in 2026 to migrate the workspace to React and TypeScript with Claude Code.</p>
             <ol className="fx-spec">
               {simsHighlights.map((item, index) => <li key={item}><span className="fx-mono">0{index + 1}</span>{item}</li>)}
             </ol>
@@ -172,6 +172,40 @@ export function Timeline() {
   );
 }
 
+/* ── AI workflow ─────────────────────────────────────────────── */
+
+export function AiWorkflow() {
+  const ref = useSpotlight<HTMLDivElement>('.fx-glow-card');
+  return (
+    <section id="ai" className="fx-section" aria-labelledby="fx-ai-title">
+      <div className="fx-wrap" ref={ref}>
+        <SectionHeading index="03" kicker="AI-native workflow" title={<span id="fx-ai-title">Agents, <span className="fx-serif">on rails</span></span>}>
+          {aiIntro}
+        </SectionHeading>
+        <div className="fx-ai-grid">
+          {aiCases.map((item, index) => (
+            <article key={item.title} className="fx-glow-card fx-ai-card" data-reveal>
+              <p className="fx-mono fx-ai-where"><span>0{index + 1}</span>{item.where}</p>
+              <h3>{item.title}</h3>
+              <ol className="fx-ai-flow" aria-label={item.flow.join(' to ')}>
+                {item.flow.map(step => <li key={step}>{step}</li>)}
+              </ol>
+              <p>{item.description}</p>
+              <ul className="fx-ai-tools">{item.tools.map(tool => <li key={tool}>{tool}</li>)}</ul>
+            </article>
+          ))}
+        </div>
+        <div className="fx-ai-principles" data-reveal>
+          <p className="fx-kicker">How I keep it reliable</p>
+          <ol className="fx-spec">
+            {aiPrinciples.map((item, index) => <li key={item}><span className="fx-mono">0{index + 1}</span>{item}</li>)}
+          </ol>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ── Skills & education ──────────────────────────────────────── */
 
 export function Skills() {
@@ -179,7 +213,7 @@ export function Skills() {
   return (
     <section id="about" className="fx-section" aria-labelledby="fx-skills-title">
       <div className="fx-wrap" ref={ref}>
-        <SectionHeading index="05" kicker="Toolbox" title={<span id="fx-skills-title">Skills &amp; <span className="fx-serif">background</span></span>} />
+        <SectionHeading index="06" kicker="Toolbox" title={<span id="fx-skills-title">Skills &amp; <span className="fx-serif">background</span></span>} />
         <div className="fx-bento">
           {skills.map(([area, technologies]) => (
             <article key={area} className="fx-glow-card fx-skill" data-reveal>
